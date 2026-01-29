@@ -1,22 +1,15 @@
 import { type FC } from 'react';
 import { Box, styled } from '@mui/material';
+import { PlayerHand } from '@/pages/Playroom/PlayerHand';
+import { ALL_CARDS } from '@/constants/cardsData';
 
 export const Playroom: FC = () => {
+  // random array di 10 numeri da 1 a 40
+  const randomCardIds = Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 1);
+  const playerHand = randomCardIds.map((id) => ALL_CARDS[id - 1]); // placeholder cards
   return (
     <PlayroomWrapper>
-      {/* Area di gioco */}
-      <Box
-        sx={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontSize: 24,
-        }}
-      >
-        Playroom
-      </Box>
+      <PlayerHand cards={playerHand} />
     </PlayroomWrapper>
   );
 };
