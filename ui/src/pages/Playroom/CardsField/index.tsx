@@ -46,7 +46,7 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
 
       <Row>
         <VerticalHandWrapper>
-          {Array.from({ length: 10 }).map((_, index) => (
+          {Array.from({ length: 5 }).map((_, index) => (
             <div key={`left-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
         </VerticalHandWrapper>
@@ -54,7 +54,7 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
         <CentralField />
 
         <VerticalHandWrapper>
-          {Array.from({ length: 10 }).map((_, index) => (
+          {Array.from({ length: 5 }).map((_, index) => (
             <div key={`right-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
         </VerticalHandWrapper>
