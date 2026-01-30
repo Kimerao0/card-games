@@ -1,6 +1,6 @@
 import { type FC } from 'react';
 import { Box, styled } from '@mui/material';
-import { PlayerHand } from '@/pages/Playroom/PlayerHand';
+import { CardsField } from '@/pages/Playroom/CardsField';
 import { ALL_CARDS } from '@/constants/cardsData';
 
 export const Playroom: FC = () => {
@@ -9,7 +9,7 @@ export const Playroom: FC = () => {
   const playerHand = randomCardIds.map((id) => ALL_CARDS[id - 1]); // placeholder cards
   return (
     <PlayroomWrapper>
-      <PlayerHand cards={playerHand} />
+      <CardsField cards={playerHand} />
     </PlayroomWrapper>
   );
 };

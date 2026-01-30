@@ -1,26 +1,40 @@
 import { SUITS_ORDER } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
-import { PlayerCard } from '@/pages/Playroom/PlayerHand/PlayerCard';
+import { PlayerCard } from '@/pages/Playroom/CardsField/PlayerCard';
 import styled from '@emotion/styled';
-import { type FC, useMemo } from 'react';
+import { type FC, useEffect, useMemo, useState } from 'react';
 import RetroImg from '@/assets/cards/napoletane/retro.jpg';
 
-interface PlayerHandProps {
+interface CardsFieldProps {
   cards: ICard[];
 }
 
-export const PlayerHand: FC<PlayerHandProps> = ({ cards }) => {
+export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
+  const [playerCards, setPlayerCards] = useState<ICard[]>(cards);
+  const [playedCardId, setPlayedCardId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setPlayerCards(cards);
+    setPlayedCardId(null);
+  }, [cards]);
+
   const sortedCards = useMemo(() => {
-    return [...cards].sort((a, b) => {
+    return [...playerCards].sort((a, b) => {
       const suitDiff = SUITS_ORDER.indexOf(a.color) - SUITS_ORDER.indexOf(b.color);
-
-      if (suitDiff !== 0) {
-        return suitDiff;
-      }
-
+      if (suitDiff !== 0) return suitDiff;
       return a.value - b.value;
     });
-  }, [cards]);
+  }, [playerCards]);
+
+  const handlePlayCard = (cardId: number) => {
+    if (playedCardId !== null) return;
+    setPlayedCardId(cardId);
+
+    window.setTimeout(() => {
+      setPlayerCards((prev) => prev.filter((c) => c.id !== cardId));
+      setPlayedCardId(null);
+    }, 320);
+  };
 
   return (
     <Column style={{ position: 'relative' }}>
@@ -29,22 +43,26 @@ export const PlayerHand: FC<PlayerHandProps> = ({ cards }) => {
           <div key={`first-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
         ))}
       </TopHandWrapper>
+
       <Row>
         <VerticalHandWrapper>
           {Array.from({ length: 10 }).map((_, index) => (
             <div key={`left-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
         </VerticalHandWrapper>
+
         <CentralField />
+
         <VerticalHandWrapper>
           {Array.from({ length: 10 }).map((_, index) => (
             <div key={`right-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
         </VerticalHandWrapper>
       </Row>
+
       <FullRow>
         {sortedCards.map((card, index) => (
-          <PlayerCard key={`player-${card.id}-${index}`} card={card} />
+          <PlayerCard key={`player-${card.id}-${index}`} card={card} isPlayed={playedCardId === card.id} onPlay={() => handlePlayCard(card.id)} />
         ))}
       </FullRow>
     </Column>
@@ -94,6 +112,7 @@ const VerticalHandWrapper = styled(CommonDiv)({
     transform: 'rotate(90deg)',
   },
 });
+
 const CentralField = styled(CommonDiv)({
   width: 'calc(60vw - 40px)',
   height: 'calc(60vh - 40px)',
@@ -105,6 +124,7 @@ const Column = styled('div')({
   display: 'flex',
   flexDirection: 'column',
 });
+
 const Row = styled('div')({
   width: '100%',
   display: 'flex',
