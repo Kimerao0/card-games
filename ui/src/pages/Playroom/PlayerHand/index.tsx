@@ -3,6 +3,7 @@ import type { ICard } from '@/dtos/Card';
 import { PlayerCard } from '@/pages/Playroom/PlayerHand/PlayerCard';
 import styled from '@emotion/styled';
 import { type FC, useMemo } from 'react';
+import RetroImg from '@/assets/cards/napoletane/retro.jpg';
 
 interface PlayerHandProps {
   cards: ICard[];
@@ -22,23 +23,90 @@ export const PlayerHand: FC<PlayerHandProps> = ({ cards }) => {
   }, [cards]);
 
   return (
-    <PlayerHandWrapper>
-      {sortedCards.map((card) => (
-        <PlayerCard key={card.id * 100} card={card} isPlayer={false} />
-      ))}
-      {sortedCards.map((card) => (
-        <PlayerCard key={card.id} card={card} isPlayer={true} />
-      ))}
-    </PlayerHandWrapper>
+    <Column style={{ position: 'relative' }}>
+      <TopHandWrapper>
+        {Array.from({ length: 10 }).map((_, index) => (
+          <div key={`first-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
+        ))}
+      </TopHandWrapper>
+      <Row>
+        <VerticalHandWrapper>
+          {Array.from({ length: 10 }).map((_, index) => (
+            <div key={`left-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
+          ))}
+        </VerticalHandWrapper>
+        <CentralField />
+        <VerticalHandWrapper>
+          {Array.from({ length: 10 }).map((_, index) => (
+            <div key={`right-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
+          ))}
+        </VerticalHandWrapper>
+      </Row>
+      <FullRow>
+        {sortedCards.map((card, index) => (
+          <PlayerCard key={`player-${card.id}-${index}`} card={card} />
+        ))}
+      </FullRow>
+    </Column>
   );
 };
 
-const PlayerHandWrapper = styled('div')({
-  width: '100%',
+const CommonDiv = styled('div')({
   display: 'flex',
+  margin: '20px',
   justifyContent: 'center',
   alignItems: 'center',
   gap: '10px',
+});
+
+const FullRow = styled(CommonDiv)({
+  width: 'calc(100vw - 40px)',
+  height: 'calc(20vh - 40px)',
   flexDirection: 'row',
-  margin: '24px 0',
+});
+
+const TopHandWrapper = styled(FullRow)({
+  gap: '20px',
+  '& > div': {
+    width: '3%',
+    height: 'auto',
+    aspectRatio: '2/3',
+    border: '1px solid black',
+    borderRadius: '8px',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  },
+});
+
+const VerticalHandWrapper = styled(CommonDiv)({
+  width: 'calc(20vw - 40px)',
+  height: 'calc(60vh - 40px)',
+  flexDirection: 'column',
+  gap: '5px',
+  '& > div': {
+    width: 'auto',
+    height: '30%',
+    aspectRatio: '2/3',
+    border: '1px solid black',
+    borderRadius: '8px',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    transform: 'rotate(90deg)',
+  },
+});
+const CentralField = styled(CommonDiv)({
+  width: 'calc(60vw - 40px)',
+  height: 'calc(60vh - 40px)',
+  flexDirection: 'column',
+});
+
+const Column = styled('div')({
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+});
+const Row = styled('div')({
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'row',
 });
