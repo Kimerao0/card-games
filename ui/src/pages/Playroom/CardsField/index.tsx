@@ -39,6 +39,7 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
   return (
     <Column style={{ position: 'relative' }}>
       <TopHandWrapper>
+        <CardCountBadge style={{ top: 4, right: 4 }}>10</CardCountBadge>
         {Array.from({ length: 10 }).map((_, index) => (
           <div key={`first-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
         ))}
@@ -46,7 +47,8 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
 
       <Row>
         <VerticalHandWrapper>
-          {Array.from({ length: 5 }).map((_, index) => (
+          <CardCountBadge style={{ top: 4, right: 4 }}>10</CardCountBadge>
+          {Array.from({ length: 10 }).map((_, index) => (
             <div key={`left-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
         </VerticalHandWrapper>
@@ -54,13 +56,15 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
         <CentralField />
 
         <VerticalHandWrapper>
-          {Array.from({ length: 5 }).map((_, index) => (
+          <CardCountBadge style={{ top: 4, left: 4 }}>10</CardCountBadge>
+          {Array.from({ length: 10 }).map((_, index) => (
             <div key={`right-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
         </VerticalHandWrapper>
       </Row>
 
       <FullRow>
+        <CardCountBadge style={{ top: 4, right: 4 }}>{sortedCards.length}</CardCountBadge>
         {sortedCards.map((card, index) => (
           <PlayerCard key={`player-${card.id}-${index}`} card={card} isPlayed={playedCardId === card.id} onPlay={() => handlePlayCard(card.id)} />
         ))}
@@ -78,6 +82,7 @@ const CommonDiv = styled('div')({
 });
 
 const FullRow = styled(CommonDiv)({
+  position: 'relative',
   width: 'calc(100vw - 40px)',
   height: 'calc(20vh - 40px)',
   flexDirection: 'row',
@@ -97,19 +102,26 @@ const TopHandWrapper = styled(FullRow)({
 });
 
 const VerticalHandWrapper = styled(CommonDiv)({
+  position: 'relative',
   width: 'calc(20vw - 40px)',
   height: 'calc(60vh - 40px)',
   flexDirection: 'column',
-  gap: '5px',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: 0,
   '& > div': {
-    width: 'auto',
-    height: '30%',
+    width: '3vw',
+    height: 'auto',
     aspectRatio: '2/3',
+    flexShrink: 0,
     border: '1px solid black',
     borderRadius: '8px',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     transform: 'rotate(90deg)',
+    '&:not(:last-child)': {
+      marginBottom: 'calc((60vh - 40px - 45vw) / 9)',
+    },
   },
 });
 
@@ -129,4 +141,20 @@ const Row = styled('div')({
   width: '100%',
   display: 'flex',
   flexDirection: 'row',
+});
+
+const CardCountBadge = styled('span')({
+  position: 'absolute',
+  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  color: 'white',
+  borderRadius: '50%',
+  width: '24px',
+  height: '24px',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  fontSize: '12px',
+  fontWeight: 'bold',
+  zIndex: 1,
+  pointerEvents: 'none',
 });
