@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Game } from './game.entity';
@@ -43,5 +43,20 @@ export class GamesService {
 
     game.players.push(user);
     return this.gamesRepo.save(game);
+  }
+
+  async deleteGame(gameId: string, userId: string): Promise<void> {
+    const game = await this.gamesRepo.findOne({
+      where: { id: gameId },
+      relations: { createdBy: true },
+    });
+
+    if (!game) throw new NotFoundException('Game not found');
+
+    if (game.createdBy.id !== userId) {
+      throw new ForbiddenException('Only the creator can delete this game');
+    }
+
+    await this.gamesRepo.remove(game);
   }
 }

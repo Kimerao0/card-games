@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { GamesService } from './games.service';
 import { CurrentUser } from 'src/auth/current-user.decorator';
 import { type AuthUser } from 'src/auth/auth-user.interface';
@@ -15,5 +15,11 @@ export class GamesController {
   @Get(':id/join')
   join(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.gamesService.joinGame(id, user.sub);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    await this.gamesService.deleteGame(id, user.sub);
   }
 }
