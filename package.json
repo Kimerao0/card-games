@@ -3,5 +3,14 @@
   "workspaces": [
     "ui",
     "api"
-  ]
+  ],
+  "scripts": {
+    "db:up": "docker compose -f api/docker-compose.yaml up -d",
+    "api:dev": "yarn workspace api start:dev",
+    "ui:dev": "yarn workspace ui dev",
+    "dev": "yarn db:up && concurrently \"yarn api:dev\" \"yarn ui:dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }
