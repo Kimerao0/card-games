@@ -29,38 +29,53 @@ Piattaforma per giochi di carte italiani (Scopone Scientifico, Tresette). Monore
 
 ### Backend — `api/`
 
-**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth, Jest.
+**Stack:** NestJS v11, TypeScript 5.7, Fastify, PostgreSQL (TypeORM), JWT auth (Passport), Jest.
 
-**Struttura:** Moduli NestJS con dependency injection. Entry point in `api/src/main.ts`, ascolta su porta 3000. CORS abilitato per `localhost:5173`. Global `ValidationPipe` con `transform: true` e `whitelist: true`.
+**Struttura:** Moduli NestJS con dependency injection. Entry point in `api/src/main.ts` (FastifyAdapter), ascolta su `0.0.0.0:3000`. CORS abilitato per `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`), `ClassSerializerInterceptor`, e `JwtAuthGuard` (tutte le rotte protette tranne `@Public()`).
 
 ```
 api/src/
-├── main.ts                        # Entry point (porta 3000, CORS, ValidationPipe)
-├── app.module.ts                  # Root module (ConfigModule, TypeOrmModule, AuthModule, UsersModule)
+├── main.ts                        # Entry point (Fastify, CORS, ValidationPipe, ClassSerializerInterceptor)
+├── app.module.ts                  # Root module (ConfigModule, TypeOrmModule, AuthModule, UsersModule, GamesModule, global JwtAuthGuard)
 ├── app.controller.ts              # GET / → "Hello World!"
 ├── app.service.ts
 ├── config/
 │   ├── config.types.ts            # ConfigType interface + Joi validation schema
 │   ├── app.config.ts              # AppConfig (messagePrefix da APP_MESSAGE_PREFIX)
 │   ├── auth.config.ts             # AuthConfig (jwt.secret, jwt.expiresIn)
-│   ├── database.config.ts         # TypeORM PostgreSQL config
+│   ├── database.config.ts         # TypeORM PostgreSQL config (autoLoadEntities: true)
 │   └── typed-config.service.ts    # Typed wrapper per ConfigService
 ├── auth/
-│   ├── auth.module.ts             # Importa UsersModule, configura JwtModule
-│   ├── auth.controller.ts         # POST /auth/register
-│   └── auth.service.ts            # Registration flow: check email, hash password, sign JWT
-└── users/
-    ├── users.module.ts            # Registra User entity
-    ├── users.service.ts           # CRUD utenti (findOneByEmail, createUser, verifyPassword)
-    ├── user.entity.ts             # Entity: id(UUID), email, name, passwordHash, createdAt, updatedAt
-    └── create-user.dto.ts         # Validazione: email, name, password (min 6, uppercase, digit, special char)
+│   ├── auth.module.ts             # Importa PassportModule, UsersModule; configura JwtModule
+│   ├── auth.controller.ts         # POST /auth/register (@Public), POST /auth/login (@Public)
+│   ├── auth.service.ts            # Register + Login: check email, hash bcrypt(10), sign JWT {sub, email}
+│   ├── jwt.strategy.ts            # PassportStrategy: Bearer token extraction, payload validation
+│   ├── jwt-auth.guard.ts          # Global guard: salta rotte @Public(), enforce JWT altrimenti
+│   ├── public.decorator.ts        # @Public() decorator (setta metadata 'isPublic')
+│   ├── current-user.decorator.ts  # @CurrentUser() param decorator (estrae AuthUser dalla request)
+│   ├── auth-user.interface.ts     # AuthUser { sub: string, email: string }
+│   ├── auth.request.ts            # AuthRequest extends Request con user: AuthUser
+│   └── login.dto.ts               # LoginDto: email, password
+├── users/
+│   ├── users.module.ts            # Registra User entity, esporta UsersService
+│   ├── users.controller.ts        # GET /users/profile (protetto, ritorna utente corrente)
+│   ├── users.service.ts           # findOneByEmail, findOneById, createUser, verifyPassword
+│   ├── user.entity.ts             # Entity: id(UUID), email(unique), name, passwordHash(@Exclude), createdAt, updatedAt
+│   └── create-user.dto.ts         # Validazione: email, name, password (min 6, uppercase, digit, special char)
+└── games/
+    ├── games.module.ts            # Importa Game entity + UsersModule
+    ├── games.controller.ts        # POST /games (crea), GET /games/:id/join, DELETE /games/:id (solo creator, 204)
+    ├── games.service.ts           # createGame, joinGame (max 4 giocatori), deleteGame (solo creator)
+    └── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), players(ManyToMany→User via game_players), createdAt, updatedAt
 ```
 
-**Configurazione:** Env vars validate con Joi in `config/config.types.ts`. Variabili richieste: `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`, `DB_SYNC`, `JWT_SECRET`, `JWT_EXPIRES_IN`. Vedi `api/docker-compose.yaml` per PostgreSQL locale.
+**Configurazione:** Env vars validate con Joi in `config/config.types.ts`. Variabili richieste: `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`, `DB_SYNC`, `JWT_SECRET`, `JWT_EXPIRES_IN`. Opzionali con default: `DB_HOST` (localhost), `DB_PORT` (5432), `APP_MESSAGE_PREFIX`. Vedi `api/docker-compose.yaml` per PostgreSQL 16 locale.
 
-**Auth flow:** Solo registrazione (`POST /auth/register`). Controlla unicità email, hash bcrypt (10 rounds), firma JWT con payload `{ sub: user.id, email: user.email }`. Passport e JWT strategy installati ma non ancora configurati (nessun guard per rotte protette).
+**Auth flow:** Registrazione (`POST /auth/register`) e login (`POST /auth/login`), entrambe `@Public()`. Hash bcrypt (10 rounds), JWT firmato con `{ sub: user.id, email }`. Tutte le altre rotte protette dal global `JwtAuthGuard` via Passport JWT strategy. `@CurrentUser()` decorator estrae l'utente autenticato. User entity usa `@Exclude()`/`@Expose()` con `ClassSerializerInterceptor` per nascondere `passwordHash`.
 
-**Database:** PostgreSQL 16 via Docker. TypeORM con `autoLoadEntities: true`, `synchronize` controllato da `DB_SYNC` env var.
+**Database:** PostgreSQL 16 via Docker. TypeORM con `autoLoadEntities: true`, `synchronize` controllato da `DB_SYNC` env var. Tabelle: `users`, `games`, `game_players` (junction ManyToMany).
+
+**Games:** Ogni partita ha un creatore (`createdBy`) e fino a 4 giocatori (ManyToMany). Solo il creatore può cancellare (`ForbiddenException`). I giocatori si uniscono via `GET /games/:id/join`.
 
 **TypeScript:** target ES2023, module `nodenext`, decorator support abilitato (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` ma `noImplicitAny: false`.
 
