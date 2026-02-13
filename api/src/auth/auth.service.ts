@@ -2,6 +2,7 @@ import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from 'src/users/users.service';
 import { CreateUserDto } from 'src/users/create-user.dto';
+import { User } from 'src/users/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -10,7 +11,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  public async register(dto: CreateUserDto): Promise<{ accessToken: string }> {
+  public async register(dto: CreateUserDto): Promise<{ user: User; accessToken: string }> {
     const existing = await this.usersService.findOneByEmail(dto.email);
     if (existing) {
       throw new ConflictException('Email already in use');
@@ -23,10 +24,10 @@ export class AuthService {
       email: user.email,
     });
 
-    return { accessToken };
+    return { user, accessToken };
   }
 
-  public async login(dto: { email: string; password: string }): Promise<{ accessToken: string }> {
+  public async login(dto: { email: string; password: string }): Promise<{ user: User; accessToken: string }> {
     const user = await this.usersService.findOneByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -42,6 +43,6 @@ export class AuthService {
       email: user.email,
     });
 
-    return { accessToken };
+    return { user, accessToken };
   }
 }

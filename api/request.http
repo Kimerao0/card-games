@@ -3,22 +3,65 @@ POST http://localhost:3000/auth/register
 Content-Type: application/json
 
 {
-  "email": "mario@example.com",
-  "name": "Mario Rossi",
+  "email": "giovanni@example.com",
+  "name": "Giovanni Neri",
   "password": "Password1!"
 }
-
 ### Login
 POST http://localhost:3000/auth/login
 Content-Type: application/json
 
 {
-  "email": "mario@example.com",
+  "email": "giovanni@example.com",
   "password": "Password1!"
 }
 
-
 ### Profile (protected)
 GET http://localhost:3000/users/profile
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNjgwY2ViYy03OWFlLTRmMTYtYWY3Mi04MTJjZTA2ZjllNzQiLCJlbWFpbCI6Im1hcmlvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcwOTgzNTY2LCJleHAiOjE3NzA5ODcxNjZ9.b8W-B-4kIcjG0xzD51HP_qakji9iMDlx8puBTT_vnUI
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MGViMjA0Ny03YzI3LTQ2MGQtODViYS01NWZkN2Y3OTQ2M2EiLCJlbWFpbCI6Imdpb3Zhbm5pQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcwOTkwNzg2LCJleHAiOjE3NzA5OTQzODZ9.8VNOIVu-JKGynvFjnyVeamYP0CPuwdt_vk1iC4EejmQ
+
+### Create game
+POST http://localhost:3000/games
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNjgwY2ViYy03OWFlLTRmMTYtYWY3Mi04MTJjZTA2ZjllNzQiLCJlbWFpbCI6Im1hcmlvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcwOTg5NzkyLCJleHAiOjE3NzA5OTMzOTJ9.yRnWSwR9ohAcvjOPqwxySNVsHc-ZXTXjjepT-844M3A
+
+
+### Join game (GET)
+GET http://localhost:3000/games/0af07f5a-1884-4300-aab5-7a48e6599f06/join
+Authorization: Bearer {{loginGiovanni.response.body.accessToken}}
+
+Users: 
+{
+  "email": "mario@example.com",
+  "name": "Mario Rossi",
+  "password": "Password1!"
+}
+{
+  "email": "carlo@example.com",
+  "name": "Carlo Verdi",
+  "password": "Password1!"
+}
+{
+  "email": "fabio@example.com",
+  "name": "Fabio Bianchi",
+  "password": "Password1!"
+}
+{
+  "email": "giovanni@example.com",
+  "name": "Giovanni Neri",
+  "password": "Password1!"
+}
+
+### Login Giovanni
+# @name loginGiovanni
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "giovanni@example.com",
+  "password": "Password1!"
+}
+
+### Profile Giovanni (usa token della risposta sopra)
+GET http://localhost:3000/users/profile
+Authorization: Bearer {{loginGiovanni.response.body.accessToken}}
 

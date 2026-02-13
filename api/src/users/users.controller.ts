@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from 'src/users/user.entity';
 import { CurrentUser } from 'src/auth/current-user.decorator';
@@ -11,6 +11,8 @@ export class UsersController {
   @Get('profile')
   async profile(@CurrentUser() user: AuthUser): Promise<User> {
     const dbUser = await this.usersService.findOneById(user.sub);
+    const userId = user.sub;
+    if (!userId) throw new BadRequestException('Missing user id');
 
     if (!dbUser) {
       throw new NotFoundException();

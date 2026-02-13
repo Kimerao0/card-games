@@ -13,6 +13,7 @@ export class AuthController {
   register(@Body() dto: CreateUserDto) {
     return this.authService.register(dto);
   }
+
   @Post('login')
   @Public()
   login(@Body() dto: LoginDto) {
