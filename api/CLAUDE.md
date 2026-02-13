@@ -52,20 +52,32 @@ src/
 │   ├── users.service.ts           # findOneByEmail, findOneById, createUser, verifyPassword
 │   ├── user.entity.ts             # Entity: id(UUID), email(unique), name, passwordHash(@Exclude), createdAt, updatedAt
 │   └── create-user.dto.ts         # Validation: email, name, password (min 6, uppercase, digit, special char)
+├── cards/
+│   ├── all-cards.const.ts         # ALL_CARDS: readonly 40-card Napoletane deck (diamonds 1-10, hearts 11-20, spades 21-30, clubs 31-40)
+│   ├── card.types.ts              # TCardColors ('spades'|'hearts'|'diamonds'|'clubs'), ICard { id, value, color }
+│   └── shuffle.util.ts            # shuffle<T>(items): Fisher-Yates shuffle, returns new array
 └── games/
-    ├── games.module.ts            # Imports Game entity + UsersModule
-    ├── games.controller.ts        # POST /games (create), GET /games/:id/join, DELETE /games/:id (creator only, 204)
-    ├── games.service.ts           # createGame, joinGame (max 4 players), deleteGame (creator only)
-    └── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), players(ManyToMany→User via game_players), createdAt, updatedAt
+    ├── games.module.ts            # Imports Game + GameParticipant entities, UsersModule
+    ├── games.controller.ts        # POST /games, GET /games, GET /games/:id/join, GET /games/:id/hand, DELETE /games/:id (creator only, 204)
+    ├── games.service.ts           # createGame, listGames, joinGame (max 4, auto-deals on 4th), getHand, deleteGame
+    ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gamePlayers(OneToMany→GameParticipant), createdAt, updatedAt
+    ├── game-player.entity.ts      # GameParticipant entity: composite PK(gameId+userId), handCardIds(int[] nullable), ManyToOne→Game/User
+    ├── game-status.enum.ts        # GameStatus: Created → Ready → Progress → Scoring → Completed
+    └── dtos/
+        ├── game-details.dto.ts    # GameDetailsDto: id, status, createdAt, updatedAt, createdByUserId, playersCount, maxPlayers
+        ├── game-summary.dto.ts    # GameSummaryDto: extends details + isUserInGame
+        └── game-hand.dto.ts       # GameHandDto: gameId, userId, handCardIds (10 card IDs)
 ```
 
 **Configuration:** Env vars validated with Joi in `config/config.types.ts`. Required: `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`, `DB_SYNC`, `JWT_SECRET`, `JWT_EXPIRES_IN`. Optional with defaults: `DB_HOST` (localhost), `DB_PORT` (5432), `APP_MESSAGE_PREFIX`. See `docker-compose.yaml` for local PostgreSQL 16.
 
 **Auth flow:** Registration (`POST /auth/register`) and login (`POST /auth/login`), both `@Public()`. Bcrypt hash (10 rounds), JWT signed with `{ sub: user.id, email }`. All other routes protected by global `JwtAuthGuard` via Passport JWT strategy. `@CurrentUser()` decorator extracts authenticated user. User entity uses `@Exclude()`/`@Expose()` with `ClassSerializerInterceptor` to hide `passwordHash`.
 
-**Database:** PostgreSQL 16 via Docker. TypeORM with `autoLoadEntities: true`, `synchronize` controlled by `DB_SYNC` env var. Tables: `users`, `games`, `game_players` (ManyToMany junction).
+**Database:** PostgreSQL 16 via Docker. TypeORM with `autoLoadEntities: true`, `synchronize` controlled by `DB_SYNC` env var. Tables: `users`, `games`, `game_participants` (explicit entity with `handCardIds`).
 
-**Games:** Each game has a creator (`createdBy`) and up to 4 players (ManyToMany). Only the creator can delete a game (`ForbiddenException`). Players join via `GET /games/:id/join`.
+**Cards:** 40-card Napoletane deck defined in `cards/all-cards.const.ts`. Cards have numeric id (1-40), value (1-10), and color (suit). Fisher-Yates shuffle in `cards/shuffle.util.ts`. Card types shared between backend and frontend.
+
+**Games:** Each game has a creator (`createdBy`), a `GameStatus` lifecycle (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), and up to 4 players tracked via `GameParticipant` entity. Only the creator can delete a game (`ForbiddenException`). Players join via `GET /games/:id/join`; when the 4th player joins, the deck is shuffled and 10 cards are dealt to each player (stored as `handCardIds` in `game_participants`). Join uses pessimistic write lock for concurrency safety. `GET /games/:id/hand` returns a player's dealt cards. `GET /games` lists all games with player counts and membership info.
 
 **TypeScript:** target ES2023, module `nodenext`, decorators enabled (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` but `noImplicitAny: false`.
 

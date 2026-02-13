@@ -12,7 +12,6 @@ export class Game {
   @ManyToOne(() => User, { nullable: false })
   createdBy!: User;
 
-  // creator + fino a 3 altri = max 4 players (la regola la facciamo nel service)
   @ManyToMany(() => User)
   @JoinTable({
     name: 'game_players',
