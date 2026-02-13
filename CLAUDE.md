@@ -104,3 +104,7 @@ Frontend React 19 + TypeScript + Vite.
 - TypeScript strict mode in entrambi i package
 - **ui Prettier:** single quotes, semicolons, 160 char print width, trailing commas (es5), LF line endings
 - **api Prettier:** single quotes, trailing commas (all) — usa i default per il resto
+- Always use explicit `public` keyword on public methods
+- Avoid `any` — create dedicated types/interfaces instead
+- Always declare explicit return types on methods
+- Favor clarity and readability over brevity — prefer verbose, self-explanatory code over compact but hard-to-follow logic

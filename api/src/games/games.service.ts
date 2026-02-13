@@ -3,12 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Game } from './game.entity';
 import { UsersService } from 'src/users/users.service';
+import { GameSummaryDto } from 'src/games/dtos/game-summary.dto';
 
 @Injectable()
 export class GamesService {
   constructor(
     @InjectRepository(Game)
-    private readonly gamesRepo: Repository<Game>,
+    private readonly gamesRepository: Repository<Game>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -16,19 +17,19 @@ export class GamesService {
     const creator = await this.usersService.findOneById(creatorId);
     if (!creator) throw new NotFoundException('User not found');
 
-    const game = this.gamesRepo.create({
+    const game = this.gamesRepository.create({
       createdBy: creator,
       players: [creator],
     });
 
-    return this.gamesRepo.save(game);
+    return this.gamesRepository.save(game);
   }
 
   async joinGame(gameId: string, userId: string): Promise<Game> {
     const user = await this.usersService.findOneById(userId);
     if (!user) throw new NotFoundException('User not found');
 
-    const game = await this.gamesRepo.findOne({
+    const game = await this.gamesRepository.findOne({
       where: { id: gameId },
       relations: { players: true, createdBy: true },
     });
@@ -42,11 +43,11 @@ export class GamesService {
     }
 
     game.players.push(user);
-    return this.gamesRepo.save(game);
+    return this.gamesRepository.save(game);
   }
 
   async deleteGame(gameId: string, userId: string): Promise<void> {
-    const game = await this.gamesRepo.findOne({
+    const game = await this.gamesRepository.findOne({
       where: { id: gameId },
       relations: { createdBy: true },
     });
@@ -57,6 +58,32 @@ export class GamesService {
       throw new ForbiddenException('Only the creator can delete this game');
     }
 
-    await this.gamesRepo.remove(game);
+    await this.gamesRepository.remove(game);
+  }
+
+  public async listGames(userId: string): Promise<GameSummaryDto[]> {
+    const games = await this.gamesRepository.find({
+      relations: {
+        createdBy: true,
+        players: true,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+
+    return games.map((game) => {
+      const isUserInGame = game.players.some((player) => player.id === userId);
+
+      return {
+        id: game.id,
+        createdAt: game.createdAt.toISOString(),
+        updatedAt: game.updatedAt.toISOString(),
+        createdByUserId: game.createdBy.id,
+        playersCount: game.players.length,
+        maxPlayers: 4,
+        isUserInGame,
+      };
+    });
   }
 }

@@ -76,3 +76,7 @@ src/
 - Single quotes, trailing commas (all), 160 char print width
 - ESLint: `@typescript-eslint/no-explicit-any` is off; `no-floating-promises` and `no-unsafe-argument` are warnings
 - UI-facing text is in Italian
+- Always use explicit `public` keyword on public methods
+- Avoid `any` — create dedicated types/interfaces instead
+- Always declare explicit return types on methods
+- Favor clarity and readability over brevity — prefer verbose, self-explanatory code over compact but hard-to-follow logic
