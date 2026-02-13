@@ -16,10 +16,6 @@ async function bootstrap() {
     }),
   );
 
-  console.log('test');
-
   await app.listen(3000);
 }
 bootstrap();
-// tmp-change
-// __git_probe__
