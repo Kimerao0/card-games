@@ -1,98 +1,168 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Card Games API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend per la piattaforma di giochi di carte italiani (Scopone Scientifico, Tresette).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+- **NestJS v11** con Express
+- **TypeScript 5.7** (ES2023, module nodenext)
+- **PostgreSQL 16** con TypeORM
+- **JWT** per autenticazione (bcrypt per hashing password)
+- **Jest** per testing
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Setup
 
-## Project setup
+### Prerequisiti
+
+- Node.js 20+
+- Yarn
+- Docker (per PostgreSQL)
+
+### Database
+
+Avvia PostgreSQL con Docker Compose:
 
 ```bash
-$ yarn install
+docker compose up -d
 ```
 
-## Compile and run the project
+Questo crea un container PostgreSQL con:
+- **User:** postgres
+- **Password:** postgres
+- **Database:** cardgames
+- **Porta:** 5432
+
+### Variabili d'ambiente
+
+Crea un file `.env` nella cartella `api/`:
+
+```env
+APP_MESSAGE_PREFIX=Config Missing
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_DATABASE=cardgames
+DB_SYNC=1
+JWT_SECRET=DEV_SECRET_CHANGE_ME
+JWT_EXPIRES_IN=1h
+```
+
+> **Nota:** `DB_SYNC=1` abilita la sincronizzazione automatica dello schema. Non usare in produzione.
+
+### Installazione e avvio
 
 ```bash
-# development
-$ yarn run start
-
-# watch mode
-$ yarn run start:dev
-
-# production mode
-$ yarn run start:prod
+yarn install
+yarn start:dev
 ```
 
-## Run tests
+Il server parte sulla porta 3000.
+
+## Struttura del progetto
+
+```
+src/
+├── main.ts                        # Entry point (porta 3000, CORS, ValidationPipe)
+├── app.module.ts                  # Root module
+├── app.controller.ts              # GET / → "Hello World!"
+├── app.service.ts
+├── config/
+│   ├── config.types.ts            # ConfigType interface + schema di validazione Joi
+│   ├── app.config.ts              # Configurazione applicazione
+│   ├── auth.config.ts             # Configurazione JWT
+│   ├── database.config.ts         # Configurazione TypeORM/PostgreSQL
+│   └── typed-config.service.ts    # Wrapper tipizzato per ConfigService
+├── auth/
+│   ├── auth.module.ts             # Modulo autenticazione (JwtModule)
+│   ├── auth.controller.ts         # POST /auth/register
+│   └── auth.service.ts            # Logica registrazione e firma JWT
+└── users/
+    ├── users.module.ts            # Modulo utenti
+    ├── users.service.ts           # CRUD utenti
+    ├── user.entity.ts             # Entity TypeORM
+    └── create-user.dto.ts         # DTO con validazione
+```
+
+## API Endpoints
+
+### `GET /`
+
+Health check. Ritorna `"Hello World!"`.
+
+### `POST /auth/register`
+
+Registra un nuovo utente e ritorna un JWT token.
+
+**Request body:**
+
+```json
+{
+  "email": "mario@example.com",
+  "name": "Mario Rossi",
+  "password": "Password1!"
+}
+```
+
+**Validazione password:**
+- Minimo 6 caratteri
+- Almeno 1 lettera maiuscola
+- Almeno 1 numero
+- Almeno 1 carattere speciale
+
+**Response (201):**
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+**JWT payload:** `{ sub: <user-id>, email: <user-email> }`
+
+**Errori:**
+- `400` — Validazione fallita
+- `409` — Email gia in uso
+
+## Database
+
+### Entity `User`
+
+| Colonna        | Tipo         | Note                      |
+|----------------|--------------|---------------------------|
+| `id`           | UUID         | Primary key, auto-generato |
+| `email`        | varchar(255) | Unico, indicizzato         |
+| `name`         | varchar(100) |                           |
+| `passwordHash` | varchar(255) | Bcrypt, 10 salt rounds     |
+| `createdAt`    | timestamp    | Auto-impostato             |
+| `updatedAt`    | timestamp    | Auto-impostato             |
+
+## Comandi
 
 ```bash
-# unit tests
-$ yarn run test
-
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+yarn start:dev       # Dev server con watch mode
+yarn build           # Compila in dist/
+yarn start:prod      # Avvia build compilato
+yarn lint            # ESLint con auto-fix
+yarn format          # Prettier
+yarn test            # Unit test
+yarn test:watch      # Test in watch mode
+yarn test:cov        # Test con coverage
+yarn test:e2e        # Test end-to-end
 ```
 
-## Deployment
+## Configurazione
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Le variabili d'ambiente sono validate all'avvio tramite Joi (`config/config.types.ts`):
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Variabile            | Obbligatoria | Default          | Descrizione                              |
+|----------------------|--------------|------------------|------------------------------------------|
+| `APP_MESSAGE_PREFIX` | No           | `Config Missing` | Prefisso messaggi applicazione           |
+| `DB_HOST`            | No           | `localhost`      | Host PostgreSQL                          |
+| `DB_PORT`            | No           | `5432`           | Porta PostgreSQL                         |
+| `DB_USER`            | Si           |                  | Username PostgreSQL                      |
+| `DB_PASSWORD`        | Si           |                  | Password PostgreSQL                      |
+| `DB_DATABASE`        | Si           |                  | Nome database                            |
+| `DB_SYNC`            | Si           |                  | `1` per sync schema, `0` per disabilitare |
+| `JWT_SECRET`         | Si           |                  | Secret per firma JWT                     |
+| `JWT_EXPIRES_IN`     | Si           |                  | Durata token (es. `1h`, `30m`)           |

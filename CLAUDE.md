@@ -29,9 +29,38 @@ Piattaforma per giochi di carte italiani (Scopone Scientifico, Tresette). Monore
 
 ### Backend — `api/`
 
-**Stack:** NestJS v11, TypeScript 5.7, Express, Jest.
+**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth, Jest.
 
-**Struttura:** Modulo NestJS standard con dependency injection — `AppModule` → `AppController` + `AppService`. Entry point in `api/src/main.ts`, ascolta su `process.env.PORT ?? 3000`.
+**Struttura:** Moduli NestJS con dependency injection. Entry point in `api/src/main.ts`, ascolta su porta 3000. CORS abilitato per `localhost:5173`. Global `ValidationPipe` con `transform: true` e `whitelist: true`.
+
+```
+api/src/
+├── main.ts                        # Entry point (porta 3000, CORS, ValidationPipe)
+├── app.module.ts                  # Root module (ConfigModule, TypeOrmModule, AuthModule, UsersModule)
+├── app.controller.ts              # GET / → "Hello World!"
+├── app.service.ts
+├── config/
+│   ├── config.types.ts            # ConfigType interface + Joi validation schema
+│   ├── app.config.ts              # AppConfig (messagePrefix da APP_MESSAGE_PREFIX)
+│   ├── auth.config.ts             # AuthConfig (jwt.secret, jwt.expiresIn)
+│   ├── database.config.ts         # TypeORM PostgreSQL config
+│   └── typed-config.service.ts    # Typed wrapper per ConfigService
+├── auth/
+│   ├── auth.module.ts             # Importa UsersModule, configura JwtModule
+│   ├── auth.controller.ts         # POST /auth/register
+│   └── auth.service.ts            # Registration flow: check email, hash password, sign JWT
+└── users/
+    ├── users.module.ts            # Registra User entity
+    ├── users.service.ts           # CRUD utenti (findOneByEmail, createUser, verifyPassword)
+    ├── user.entity.ts             # Entity: id(UUID), email, name, passwordHash, createdAt, updatedAt
+    └── create-user.dto.ts         # Validazione: email, name, password (min 6, uppercase, digit, special char)
+```
+
+**Configurazione:** Env vars validate con Joi in `config/config.types.ts`. Variabili richieste: `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`, `DB_SYNC`, `JWT_SECRET`, `JWT_EXPIRES_IN`. Vedi `api/docker-compose.yaml` per PostgreSQL locale.
+
+**Auth flow:** Solo registrazione (`POST /auth/register`). Controlla unicità email, hash bcrypt (10 rounds), firma JWT con payload `{ sub: user.id, email: user.email }`. Passport e JWT strategy installati ma non ancora configurati (nessun guard per rotte protette).
+
+**Database:** PostgreSQL 16 via Docker. TypeORM con `autoLoadEntities: true`, `synchronize` controllato da `DB_SYNC` env var.
 
 **TypeScript:** target ES2023, module `nodenext`, decorator support abilitato (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` ma `noImplicitAny: false`.
 
