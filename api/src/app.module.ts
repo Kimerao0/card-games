@@ -9,6 +9,7 @@ import { typeOrmConfig } from './config/database.config';
 import { authConfig } from './config/auth.config';
 import { appConfig } from './config/app.config';
 import { TypedConfigService } from './config/typed-config.service';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -26,6 +27,8 @@ import { TypedConfigService } from './config/typed-config.service';
     }),
 
     AuthModule,
+
+    UsersModule,
   ],
   providers: [{ provide: TypedConfigService, useExisting: ConfigService }],
 })
