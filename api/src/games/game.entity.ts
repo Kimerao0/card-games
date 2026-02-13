@@ -1,5 +1,6 @@
-import { CreateDateColumn, Entity, ManyToMany, ManyToOne, PrimaryGeneratedColumn, JoinTable, UpdateDateColumn } from 'typeorm';
+import { CreateDateColumn, Entity, ManyToMany, ManyToOne, PrimaryGeneratedColumn, JoinTable, UpdateDateColumn, Column } from 'typeorm';
 import { User } from 'src/users/user.entity';
+import { GameStatus } from 'src/games/game-status.enum';
 
 @Entity('games')
 export class Game {
@@ -23,4 +24,11 @@ export class Game {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @Column({
+    type: 'enum',
+    enum: GameStatus,
+    default: GameStatus.Created,
+  })
+  status: GameStatus;
 }

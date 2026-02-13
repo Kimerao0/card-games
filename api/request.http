@@ -12,13 +12,13 @@ POST http://localhost:3000/auth/login
 Content-Type: application/json
 
 {
-  "email": "giovanni@example.com",
+  "email": "carlo@example.com",
   "password": "Password1!"
 }
 
 ### Profile (protected)
 GET http://localhost:3000/users/profile
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MGViMjA0Ny03YzI3LTQ2MGQtODViYS01NWZkN2Y3OTQ2M2EiLCJlbWFpbCI6Imdpb3Zhbm5pQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcwOTkwNzg2LCJleHAiOjE3NzA5OTQzODZ9.8VNOIVu-JKGynvFjnyVeamYP0CPuwdt_vk1iC4EejmQ
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiMDlkY2ZmMy03YTc1LTRhNDktYmQzNy00Njc1ZmE1MDJiNjUiLCJlbWFpbCI6ImNhcmxvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcwOTk0OTM0LCJleHAiOjE3NzA5OTg1MzR9.4UaayFEqK22GHsl43J6WKF7ALy_3irWiNgZJOoCTPdw
 
 ### Create game
 POST http://localhost:3000/games
@@ -27,7 +27,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MGViMjA0N
 
 ### Join game (GET)
 GET http://localhost:3000/games/0af07f5a-1884-4300-aab5-7a48e6599f06/join
-Authorization: Bearer {{loginGiovanni.response.body.accessToken}}
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiMDlkY2ZmMy03YTc1LTRhNDktYmQzNy00Njc1ZmE1MDJiNjUiLCJlbWFpbCI6ImNhcmxvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcwOTk0OTM0LCJleHAiOjE3NzA5OTg1MzR9.4UaayFEqK22GHsl43J6WKF7ALy_3irWiNgZJOoCTPdw
 
 ### Delete game
 DELETE http://localhost:3000/games/bc0e72ba-c88b-42d6-9455-583c901c416d
