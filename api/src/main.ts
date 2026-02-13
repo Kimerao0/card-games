@@ -6,14 +6,15 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
 
-  // Fix: some clients (es. VSCode REST Client) may send "content-type: undefined"
-  // on requests without body (DELETE/POST). Accept it as empty body.
-  app
-    .getHttpAdapter()
-    .getInstance()
-    .addContentTypeParser(/^undefined$/, { parseAs: 'string' }, (_req, _body, done) => {
-      done(null, undefined);
-    });
+  const fastify = app.getHttpAdapter().getInstance();
+
+  // Fix: VSCode REST Client a volte manda "content-type: undefined"
+  fastify.addHook('onRequest', (request: any, _reply: any, done: any) => {
+    if (request.headers['content-type'] === 'undefined') {
+      delete request.headers['content-type'];
+    }
+    done();
+  });
 
   app.enableCors({
     origin: 'http://localhost:5173',
