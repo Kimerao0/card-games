@@ -12,6 +12,7 @@ import { authConfig } from './config/auth.config';
 import { appConfig } from './config/app.config';
 import { TypedConfigService } from './config/typed-config.service';
 import { UsersModule } from './users/users.module';
+import { GamesModule } from './games/games.module';
 
 @Module({
   imports: [
@@ -29,6 +30,8 @@ import { UsersModule } from './users/users.module';
     AuthModule,
 
     UsersModule,
+
+    GamesModule,
   ],
   providers: [
     { provide: TypedConfigService, useExisting: ConfigService },
