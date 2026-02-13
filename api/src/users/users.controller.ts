@@ -1,26 +1,21 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Controller, Get, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { User } from 'src/users/user.entity';
+import { CurrentUser } from 'src/auth/current-user.decorator';
+import { type AuthUser } from 'src/auth/auth-user.interface';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('profile')
-  @UseGuards(AuthGuard('jwt'))
-  async profile(@Req() req: any) {
-    const userId = req.user.userId as string;
+  async profile(@CurrentUser() user: AuthUser): Promise<User> {
+    const dbUser = await this.usersService.findOneById(user.sub);
 
-    const user = await this.usersService.findOneById(userId);
-    if (!user) return null;
+    if (!dbUser) {
+      throw new NotFoundException();
+    }
 
-    // NON ritornare passwordHash
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
+    return dbUser;
   }
 }
