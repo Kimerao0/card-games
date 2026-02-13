@@ -1,6 +1,8 @@
 import { CreateDateColumn, Entity, ManyToMany, ManyToOne, PrimaryGeneratedColumn, JoinTable, UpdateDateColumn, Column } from 'typeorm';
 import { User } from 'src/users/user.entity';
 import { GameStatus } from 'src/games/game-status.enum';
+import { OneToMany } from 'typeorm';
+import { GameParticipant } from './game-player.entity';
 
 @Entity('games')
 export class Game {
@@ -31,4 +33,7 @@ export class Game {
     default: GameStatus.Created,
   })
   status: GameStatus;
+
+  @OneToMany(() => GameParticipant, (gp) => gp.game, { cascade: true })
+  public gamePlayers: GameParticipant[];
 }

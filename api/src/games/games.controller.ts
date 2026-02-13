@@ -3,6 +3,8 @@ import { GamesService } from './games.service';
 import { CurrentUser } from 'src/auth/current-user.decorator';
 import { type AuthUser } from 'src/auth/auth-user.interface';
 import { GameSummaryDto } from 'src/games/dtos/game-summary.dto';
+import { GameDetailsDto } from 'src/games/dtos/game-details.dto';
+import { GameHandDto } from 'src/games/dtos/game-hand.dto';
 
 @Controller('games')
 export class GamesController {
@@ -14,8 +16,8 @@ export class GamesController {
   }
 
   @Get(':id/join')
-  join(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.gamesService.joinGame(id, user.sub);
+  public async joinGame(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameDetailsDto> {
+    return this.gamesService.joinGame(gameId, user.sub);
   }
 
   @Delete(':id')
@@ -27,5 +29,10 @@ export class GamesController {
   @Get()
   public async listGames(@CurrentUser() user: AuthUser): Promise<GameSummaryDto[]> {
     return this.gamesService.listGames(user.sub);
+  }
+
+  @Get(':id/hand')
+  public async getHand(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameHandDto> {
+    return this.gamesService.getHand(gameId, user.sub);
   }
 }
