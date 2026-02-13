@@ -29,6 +29,10 @@ export class UsersService {
     return this.usersRepo.save(user);
   }
 
+  public async findOneById(id: string): Promise<User | null> {
+    return this.usersRepo.findOneBy({ id });
+  }
+
   public async verifyPassword(user: User, password: string): Promise<boolean> {
     return bcrypt.compare(password, user.passwordHash);
   }

@@ -17,3 +17,8 @@ Content-Type: application/json
   "password": "Password1!"
 }
 
+
+### Profile (protected)
+GET http://localhost:3000/users/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNjgwY2ViYy03OWFlLTRmMTYtYWY3Mi04MTJjZTA2ZjllNzQiLCJlbWFpbCI6Im1hcmlvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcwOTgzNTY2LCJleHAiOjE3NzA5ODcxNjZ9.b8W-B-4kIcjG0xzD51HP_qakji9iMDlx8puBTT_vnUI
+

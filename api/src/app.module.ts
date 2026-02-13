@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from './auth/auth.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 import { appConfigSchema } from './config/config.types';
 import { typeOrmConfig } from './config/database.config';
@@ -28,6 +30,9 @@ import { UsersModule } from './users/users.module';
 
     UsersModule,
   ],
-  providers: [{ provide: TypedConfigService, useExisting: ConfigService }],
+  providers: [
+    { provide: TypedConfigService, useExisting: ConfigService },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
 export class AppModule {}
