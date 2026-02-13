@@ -20,10 +20,8 @@ import { UsersModule } from './users/users.module';
     }),
 
     TypeOrmModule.forRootAsync({
-      inject: [TypedConfigService],
-      useFactory: (configService: TypedConfigService) => ({
-        ...configService.get('database'),
-      }),
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => config.get('database')!,
     }),
 
     AuthModule,

@@ -1,17 +1,18 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { TypedConfigService } from 'src/config/typed-config.service';
-import { AuthConfig } from 'src/config/auth.config';
 import { UsersModule } from 'src/users/users.module';
+import { AuthConfig } from 'src/config/auth.config';
 
 @Module({
   imports: [
     UsersModule,
     JwtModule.registerAsync({
-      inject: [TypedConfigService],
-      useFactory: (config: TypedConfigService) => {
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
         const auth = config.get<AuthConfig>('auth');
         if (!auth?.jwt?.secret || !auth?.jwt?.expiresIn) {
           throw new Error('Missing auth config (JWT_SECRET / JWT_EXPIRES_IN)');
