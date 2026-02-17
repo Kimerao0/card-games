@@ -6,7 +6,7 @@
   ],
   "scripts": {
     "db:up": "docker compose -f api/docker-compose.yaml up -d",
-    "api:dev": "yarn db:up workspace api start:dev",
+    "api:dev": "yarn workspace api start:dev",
     "ui:dev": "yarn workspace ui dev",
     "dev": "yarn db:up && concurrently \"yarn api:dev\" \"yarn ui:dev\""
   },
