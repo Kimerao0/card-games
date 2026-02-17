@@ -28,6 +28,8 @@ src/
 ├── main.tsx                          # Entry point (StrictMode, Redux Provider, MUI ThemeProvider, CssBaseline)
 ├── index.css                         # Global styles
 ├── assets/cards/napoletane/          # 40 card JPG images + retro.jpg (card back)
+├── components/
+│   └── AuthGuard.tsx                 # Protected route wrapper (checks auth, redirects to /login with return path)
 ├── constants/
 │   └── cardsData.ts                  # CARDS_IMAGES, CARDS_LABELS, ALL_CARDS, SUITS_ORDER
 ├── dtos/
@@ -37,6 +39,7 @@ src/
 │   └── User.ts                       # IUser { id, email, name }
 ├── pages/
 │   ├── Home/index.tsx                # Landing page with game selection buttons
+│   ├── Login/index.tsx               # Tabbed login/register form with error handling and safe redirect
 │   ├── NotFound/index.tsx            # 404 page
 │   └── Playroom/
 │       ├── index.tsx                 # Game table wrapper (green background, full viewport)
@@ -53,20 +56,30 @@ src/
 │   │   ├── usersApi.ts               # getProfile query (tag: UserProfile)
 │   │   └── gamesApi.ts              # createGame, listGames, joinGame, getGameHand, deleteGame
 │   └── slices/
-│       └── authSlice.ts              # Auth state: user, token; actions: setCredentials, logout; persists token in localStorage
+│       └── authSlice.ts              # Auth state: user, token, initialized; persists token in localStorage
 ├── theme/
 │   └── index.ts                      # MUI theme (light mode, primary #1976d2, secondary #9c27b0)
 └── utils/
     └── tokenStorage.ts               # getStoredToken, setStoredToken, removeStoredToken (localStorage)
 ```
 
-### Card System
-
-Uses a 40-card Napoletane deck. Card data types in `src/dtos/Card.ts` (`ICard` interface with id/value/color, `TCardColors` type). Static card data (image imports, labels, full deck array) in `src/constants/cardsData.ts`. Card images in `src/assets/cards/napoletane/`. Cards identified by numeric id (1-40), grouped in suits of 10: denari (diamonds 1-10), coppe (hearts 11-20), spade (spades 21-30), bastoni (clubs 31-40).
-
 ### Routing
 
-Defined in `src/App.tsx`. Routes: `/` (Home), `/giochi/scopone-scientifico`, `/giochi/tresette`, `/dev` (Playroom dev view), `*` (NotFound). Scopone and Tresette routes are placeholder divs (WIP).
+Defined in `src/App.tsx`.
+
+**Public routes:** `/` (Home), `/login` (Login).
+
+**Protected routes (via AuthGuard):** `/giochi/scopone-scientifico` (placeholder), `/giochi/tresette` (placeholder), `/dev` (Playroom dev view).
+
+**Catch-all:** `*` (NotFound).
+
+### Authentication
+
+**Login page** (`pages/Login/index.tsx`): Tabbed interface with login and register forms. Uses `useLoginMutation()` and `useRegisterMutation()`. Extracts error messages from RTK Query errors. After successful auth, redirects to the original requested path (with `isSafeInternalPath` check to prevent open redirects).
+
+**AuthGuard** (`components/AuthGuard.tsx`): Wraps protected routes. Checks `selectIsAuthenticated` and `selectAuthInitialized` selectors. Shows loading state while auth initializes. Redirects unauthenticated users to `/login` with the current location in state for post-login navigation.
+
+**Auth Slice** (`store/slices/authSlice.ts`): State: `user` (IUser | null), `token` (string | null), `initialized` (boolean). Actions: `setCredentials`, `setToken`, `logout`, `setAuthInitialized`. Both `setCredentials` and `logout` persist/clear token in localStorage. Selectors: `selectCurrentUser`, `selectIsAuthenticated`, `selectAuthInitialized`. Loads token from localStorage on init.
 
 ### State Management (Redux Toolkit + RTK Query)
 
@@ -86,7 +99,9 @@ Defined in `src/App.tsx`. Routes: `/` (Home), `/giochi/scopone-scientifico`, `/g
 - `useGetGameHandQuery(gameId)` — GET /games/{id}/hand → `IGameHandDto`; tag: `GameHand` by gameId
 - `useDeleteGameMutation(gameId)` — DELETE /games/{id}; invalidates `Games`
 
-**Auth Slice** (`store/slices/authSlice.ts`): Stores `user` and `token`. Actions: `setCredentials({ user, token })`, `logout()`. Both persist/clear token in localStorage. Selectors: `selectCurrentUser`, `selectIsAuthenticated`. Loads token from localStorage on init.
+### Card System
+
+Uses a 40-card Napoletane deck. Card data types in `src/dtos/Card.ts` (`ICard` interface with id/value/color, `TCardColors` type). Static card data (image imports, labels, full deck array) in `src/constants/cardsData.ts`. Card images in `src/assets/cards/napoletane/`. Cards identified by numeric id (1-40), grouped in suits of 10: denari (diamonds 1-10), coppe (hearts 11-20), spade (spades 21-30), bastoni (clubs 31-40).
 
 ### Playroom Layout
 

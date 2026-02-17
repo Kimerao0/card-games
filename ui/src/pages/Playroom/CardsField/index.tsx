@@ -39,7 +39,6 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
   return (
     <Column style={{ position: 'relative' }}>
       <TopHandWrapper>
-        <CardCountBadge style={{ top: 4, right: 4 }}>10</CardCountBadge>
         {Array.from({ length: 10 }).map((_, index) => (
           <div key={`first-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
         ))}
@@ -47,7 +46,6 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
 
       <Row>
         <VerticalHandWrapper>
-          <CardCountBadge style={{ top: 4, right: 4 }}>10</CardCountBadge>
           {Array.from({ length: 10 }).map((_, index) => (
             <div key={`left-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
@@ -56,7 +54,6 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
         <CentralField />
 
         <VerticalHandWrapper>
-          <CardCountBadge style={{ top: 4, left: 4 }}>10</CardCountBadge>
           {Array.from({ length: 10 }).map((_, index) => (
             <div key={`right-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
           ))}
@@ -64,7 +61,6 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
       </Row>
 
       <FullRow>
-        <CardCountBadge style={{ top: 4, right: 4 }}>{sortedCards.length}</CardCountBadge>
         {sortedCards.map((card, index) => (
           <PlayerCard key={`player-${card.id}-${index}`} card={card} isPlayed={playedCardId === card.id} onPlay={() => handlePlayCard(card.id)} />
         ))}
@@ -90,6 +86,7 @@ const FullRow = styled(CommonDiv)({
 
 const TopHandWrapper = styled(FullRow)({
   gap: '20px',
+  position: 'relative',
   '& > div': {
     width: '3%',
     height: 'auto',
@@ -131,30 +128,14 @@ const CentralField = styled(CommonDiv)({
   flexDirection: 'column',
 });
 
-const Column = styled('div')({
+export const Column = styled('div')({
   width: '100%',
   display: 'flex',
   flexDirection: 'column',
 });
 
-const Row = styled('div')({
+export const Row = styled('div')({
   width: '100%',
   display: 'flex',
   flexDirection: 'row',
-});
-
-const CardCountBadge = styled('span')({
-  position: 'absolute',
-  backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  color: 'white',
-  borderRadius: '50%',
-  width: '24px',
-  height: '24px',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  fontSize: '12px',
-  fontWeight: 'bold',
-  zIndex: 1,
-  pointerEvents: 'none',
 });
