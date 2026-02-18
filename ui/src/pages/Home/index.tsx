@@ -30,7 +30,7 @@ export const Home: FC = () => {
       {/* Scattered background cards */}
       <ScatteredCardsLayer>
         {scatteredCards.map((cardId, index) => {
-          const angle = (index * 47 + 13) % 360 - 180;
+          const angle = ((index * 47 + 13) % 360) - 180;
           const xPercent = ((index * 31 + 7) % 90) + 5;
           const yPercent = ((index * 43 + 19) % 80) + 10;
           return (
@@ -74,7 +74,7 @@ export const Home: FC = () => {
 
           <TitleBlock>
             <Typography variant="h2" component="h1" sx={{ fontWeight: 700, color: '#fff', textShadow: '2px 3px 6px rgba(0,0,0,0.5)', mb: 1 }}>
-              Carte Napoletane
+              Giochi di carte
             </Typography>
             <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.85)', textShadow: '1px 2px 4px rgba(0,0,0,0.4)', fontWeight: 400, maxWidth: 560 }}>
               Gioca online ai grandi classici dei giochi di carte italiani. Crea una partita, invita i tuoi amici e sfidali!
