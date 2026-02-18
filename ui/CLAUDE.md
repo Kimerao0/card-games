@@ -29,6 +29,8 @@ src/
 ├── index.css                         # Global styles
 ├── assets/cards/napoletane/          # 40 card JPG images + retro.jpg (card back)
 ├── components/
+│   ├── AppHeader.tsx                 # Top navigation bar (logo link, user name/Guest, login/logout icon button)
+│   ├── AppLayout.tsx                 # Layout wrapper (AppHeader + Outlet, full viewport flexbox column)
 │   └── AuthGuard.tsx                 # Protected route wrapper (checks auth, redirects to /login with return path)
 ├── constants/
 │   └── cardsData.ts                  # CARDS_IMAGES, CARDS_LABELS, ALL_CARDS, SUITS_ORDER
@@ -63,15 +65,19 @@ src/
     └── tokenStorage.ts               # getStoredToken, setStoredToken, removeStoredToken (localStorage)
 ```
 
-### Routing
+### Routing & Layout
 
-Defined in `src/App.tsx`.
+Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which renders a persistent `AppHeader` navigation bar above every page via `<Outlet />`.
 
 **Public routes:** `/` (Home), `/login` (Login).
 
 **Protected routes (via AuthGuard):** `/giochi/scopone-scientifico` (placeholder), `/giochi/tresette` (placeholder), `/dev` (Playroom dev view).
 
 **Catch-all:** `*` (NotFound).
+
+### App Header
+
+`components/AppHeader.tsx`: Persistent top bar (`AppBar` with dark `#333` background). Left: "Card Games" logo link to `/`. Center: current user name or "Guest". Right: `AccountCircle` icon button — logs out and redirects to `/` if authenticated, navigates to `/login` otherwise. Uses `Row` styled component from `CardsField`.
 
 ### Authentication
 
