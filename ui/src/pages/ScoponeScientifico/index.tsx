@@ -1,9 +1,27 @@
-import { type FC, useMemo } from 'react';
-import { Box, Button, Card, CardContent, Divider, Typography } from '@mui/material';
+import { type FC, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  List,
+  ListItemButton,
+  ListItemText,
+  Typography,
+} from '@mui/material';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import RetroImg from '@/assets/cards/napoletane/retro.jpg';
 import { CARDS_IMAGES } from '@/constants/cardsData';
+import { useCreateGameMutation, useJoinGameMutation, useListGamesQuery } from '@/store/api/gamesApi';
 
 const SHOWCASE_CARD_IDS = [1, 11, 21, 31, 10, 20, 30, 40];
 
@@ -44,6 +62,33 @@ const shuffleArray = (arr: number[]): number[] => {
 };
 
 export const ScoponeScientifico: FC = () => {
+  const navigate = useNavigate();
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+
+  const [createGame, { isLoading: isCreating }] = useCreateGameMutation();
+  const { data: games, isLoading: isLoadingGames } = useListGamesQuery(undefined, { skip: !joinDialogOpen });
+  const [joinGame, { isLoading: isJoining }] = useJoinGameMutation();
+
+  const joinableGames = games?.filter((g) => !g.isUserInGame && g.playersCount < g.maxPlayers) ?? [];
+
+  const handleCreateGame = async (): Promise<void> => {
+    try {
+      await createGame().unwrap();
+    } catch (_err) {
+      // Error surfaces via RTK Query hook state
+    }
+  };
+
+  const handleJoinGame = async (gameId: string): Promise<void> => {
+    try {
+      await joinGame(gameId).unwrap();
+      setJoinDialogOpen(false);
+      navigate('/dev');
+    } catch (_err) {
+      // Error surfaces via RTK Query hook state
+    }
+  };
+
   const scatteredCards = useMemo(() => {
     const allIds = Array.from({ length: 40 }, (_, i) => i + 1);
     return shuffleArray(allIds).slice(0, 14);
@@ -130,14 +175,38 @@ export const ScoponeScientifico: FC = () => {
 
         {/* Actions */}
         <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center', pb: 4 }}>
-          <Button variant="contained" size="large" sx={actionButtonSx('#2e7d32', '#1b5e20')}>
-            Crea partita
+          <Button variant="contained" size="large" sx={actionButtonSx('#2e7d32', '#1b5e20')} onClick={handleCreateGame} disabled={isCreating}>
+            {isCreating ? <CircularProgress size={20} color="inherit" /> : 'Crea partita'}
           </Button>
-          <Button variant="outlined" size="large" sx={outlinedButtonSx}>
+          <Button variant="outlined" size="large" sx={outlinedButtonSx} onClick={() => setJoinDialogOpen(true)}>
             Unisciti ad una partita
           </Button>
         </Box>
       </ContentLayer>
+
+      <Dialog open={joinDialogOpen} onClose={() => setJoinDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Partite disponibili</DialogTitle>
+        <DialogContent>
+          {isLoadingGames ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : joinableGames.length === 0 ? (
+            <Alert severity="info">Nessuna partita disponibile al momento.</Alert>
+          ) : (
+            <List disablePadding>
+              {joinableGames.map((game) => (
+                <ListItemButton key={game.id} disabled={isJoining} onClick={() => handleJoinGame(game.id)}>
+                  <ListItemText primary={`Partita #${game.id.slice(-6).toUpperCase()}`} secondary={`${game.playersCount}/${game.maxPlayers} giocatori`} />
+                </ListItemButton>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setJoinDialogOpen(false)}>Chiudi</Button>
+        </DialogActions>
+      </Dialog>
     </PageWrapper>
   );
 };
