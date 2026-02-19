@@ -73,7 +73,7 @@ export const ScoponeScientifico: FC = () => {
 
   const handleCreateGame = async (): Promise<void> => {
     try {
-      await createGame().unwrap();
+      await createGame('ScoponeScientifico').unwrap();
     } catch (_err) {
       // Error surfaces via RTK Query hook state
     }

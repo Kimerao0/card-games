@@ -68,13 +68,15 @@ api/src/
 │   └── shuffle.util.ts            # shuffle<T>(items): Fisher-Yates shuffle, ritorna nuovo array
 └── games/
     ├── games.module.ts            # Importa Game + GameParticipant entities, UsersModule
-    ├── games.controller.ts        # POST /games, GET /games, GET /games/:id/join, GET /games/:id/hand, DELETE /games/:id (solo creator, 204)
+    ├── games.controller.ts        # POST /games (body: CreateGameDto), GET /games, GET /games/:id/join, GET /games/:id/hand, DELETE /games/:id (solo creator, 204)
     ├── games.service.ts           # createGame, listGames, joinGame (max 4, auto-distribuzione al 4°), getHand, deleteGame
-    ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gamePlayers(OneToMany→GameParticipant), createdAt, updatedAt
+    ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gameType(GameType), gamePlayers(OneToMany→GameParticipant), createdAt, updatedAt
     ├── game-player.entity.ts      # GameParticipant entity: PK composita(gameId+userId), handCardIds(int[] nullable), ManyToOne→Game/User
     ├── game-status.enum.ts        # GameStatus: Created → Ready → Progress → Scoring → Completed
+    ├── game-type.enum.ts          # GameType: ScoponeScientifico | Tresette
     └── dtos/
-        ├── game-details.dto.ts    # GameDetailsDto: id, status, createdAt, updatedAt, createdByUserId, playersCount, maxPlayers
+        ├── create-game.dto.ts     # CreateGameDto: gameType (@IsEnum(GameType))
+        ├── game-details.dto.ts    # GameDetailsDto: id, status, gameType, createdAt, updatedAt, createdByUserId, playersCount, maxPlayers
         ├── game-summary.dto.ts    # GameSummaryDto: estende details + isUserInGame
         └── game-hand.dto.ts       # GameHandDto: gameId, userId, handCardIds (10 card IDs)
 ```
@@ -87,7 +89,7 @@ api/src/
 
 **Cards:** Mazzo Napoletane da 40 carte definito in `cards/all-cards.const.ts`. Ogni carta ha id numerico (1-40), valore (1-10) e colore (seme). Fisher-Yates shuffle in `cards/shuffle.util.ts`.
 
-**Games:** Ogni partita ha un creatore (`createdBy`), un ciclo di vita `GameStatus` (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), e fino a 4 giocatori tracciati via entity `GameParticipant`. Solo il creatore può cancellare (`ForbiddenException`). I giocatori si uniscono via `GET /games/:id/join`; quando il 4° giocatore entra, il mazzo viene mescolato e 10 carte distribuite a ciascun giocatore (salvate come `handCardIds` in `game_participants`). Il join usa pessimistic write lock per sicurezza in concorrenza. `GET /games/:id/hand` ritorna le carte distribuite al giocatore. `GET /games` elenca tutte le partite con conteggio giocatori e info di appartenenza.
+**Games:** Ogni partita ha un creatore (`createdBy`), un tipo (`gameType`: `ScoponeScientifico` | `Tresette`), un ciclo di vita `GameStatus` (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), e fino a 4 giocatori tracciati via entity `GameParticipant`. Il tipo viene passato alla creazione tramite `CreateGameDto` nel body di `POST /games`. Solo il creatore può cancellare (`ForbiddenException`). I giocatori si uniscono via `GET /games/:id/join`; quando il 4° giocatore entra, il mazzo viene mescolato e 10 carte distribuite a ciascun giocatore (salvate come `handCardIds` in `game_participants`). Il join usa pessimistic write lock per sicurezza in concorrenza. `GET /games/:id/hand` ritorna le carte distribuite al giocatore. `GET /games` elenca tutte le partite con conteggio giocatori e info di appartenenza.
 
 **TypeScript:** target ES2023, module `nodenext`, decorator support abilitato (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` ma `noImplicitAny: false`.
 

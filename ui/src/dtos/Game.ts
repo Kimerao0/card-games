@@ -1,10 +1,12 @@
 import type { IUser } from '@/dtos/User';
 
 export type TGameStatus = 'Created' | 'Ready' | 'Progress' | 'Scoring' | 'Completed';
+export type TGameType = 'ScoponeScientifico' | 'Tresette';
 
 export interface IGameDetailsDto {
   readonly id: string;
   readonly status: string;
+  readonly gameType: TGameType;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly createdByUserId: string;
@@ -14,6 +16,7 @@ export interface IGameDetailsDto {
 
 export interface IGameSummaryDto {
   readonly id: string;
+  readonly gameType: TGameType;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly createdByUserId: string;
@@ -37,6 +40,7 @@ export interface IGameParticipant {
 export interface IGameCreatedResponse {
   readonly id: string;
   readonly status: TGameStatus;
+  readonly gameType: TGameType;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly createdBy: IUser;

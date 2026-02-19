@@ -1,18 +1,19 @@
-import { Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { GamesService } from './games.service';
 import { CurrentUser } from 'src/auth/current-user.decorator';
 import { type AuthUser } from 'src/auth/auth-user.interface';
 import { GameSummaryDto } from 'src/games/dtos/game-summary.dto';
 import { GameDetailsDto } from 'src/games/dtos/game-details.dto';
 import { GameHandDto } from 'src/games/dtos/game-hand.dto';
+import { CreateGameDto } from 'src/games/dtos/create-game.dto';
 
 @Controller('games')
 export class GamesController {
   constructor(private readonly gamesService: GamesService) {}
 
   @Post()
-  create(@CurrentUser() user: AuthUser) {
-    return this.gamesService.createGame(user.sub);
+  public create(@Body() dto: CreateGameDto, @CurrentUser() user: AuthUser): Promise<unknown> {
+    return this.gamesService.createGame(user.sub, dto.gameType);
   }
 
   @Get(':id/join')

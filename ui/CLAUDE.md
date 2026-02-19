@@ -37,12 +37,14 @@ src/
 ├── dtos/
 │   ├── Auth.ts                       # ILoginRequest, IRegisterRequest, IAuthResponse
 │   ├── Card.ts                       # ICard { id, value, color }, TCardColors
-│   ├── Game.ts                       # IGameDetailsDto, IGameSummaryDto, IGameHandDto, IGameParticipant, IGameCreatedResponse, TGameStatus
+│   ├── Game.ts                       # IGameDetailsDto, IGameSummaryDto, IGameHandDto, IGameParticipant, IGameCreatedResponse, TGameStatus, TGameType
 │   └── User.ts                       # IUser { id, email, name }
 ├── pages/
 │   ├── Home/index.tsx                # Landing page with game selection buttons
 │   ├── Login/index.tsx               # Tabbed login/register form with error handling and safe redirect
 │   ├── NotFound/index.tsx            # 404 page
+│   ├── ScoponeScientifico/index.tsx  # Game page: rules, create game (passes 'ScoponeScientifico'), join game dialog, navigate to /dev
+│   ├── Tresette/index.tsx            # Game page: rules, create game (passes 'Tresette'), join game dialog, navigate to /dev
 │   └── Playroom/
 │       ├── index.tsx                 # Game table wrapper (green background, full viewport)
 │       └── CardsField/
@@ -71,7 +73,7 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 
 **Public routes:** `/` (Home), `/login` (Login).
 
-**Protected routes (via AuthGuard):** `/giochi/scopone-scientifico` (placeholder), `/giochi/tresette` (placeholder), `/dev` (Playroom dev view).
+**Protected routes (via AuthGuard):** `/giochi/scopone-scientifico` (ScoponeScientifico page), `/giochi/tresette` (Tresette page), `/dev` (Playroom dev view).
 
 **Catch-all:** `*` (NotFound).
 
@@ -99,7 +101,7 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 - `useGetProfileQuery()` — GET /users/profile → `IUser`; tag: `UserProfile`
 
 **Games API** (`store/api/gamesApi.ts`):
-- `useCreateGameMutation()` — POST /games → `IGameCreatedResponse`; invalidates `Games`
+- `useCreateGameMutation()` — POST /games with `{ gameType: TGameType }` body → `IGameCreatedResponse`; invalidates `Games`
 - `useListGamesQuery()` — GET /games → `IGameSummaryDto[]`; provides per-item + LIST tags
 - `useJoinGameMutation(gameId)` — GET /games/{id}/join → `IGameDetailsDto`; invalidates `Games`, `GameHand`
 - `useGetGameHandQuery(gameId)` — GET /games/{id}/hand → `IGameHandDto`; tag: `GameHand` by gameId

@@ -7,6 +7,7 @@ import { shuffle } from 'src/cards/shuffle.util';
 import { GameDetailsDto } from 'src/games/dtos/game-details.dto';
 import { GameSummaryDto } from 'src/games/dtos/game-summary.dto';
 import { GameStatus } from 'src/games/game-status.enum';
+import { GameType } from 'src/games/game-type.enum';
 import { User } from 'src/users/user.entity';
 import { UsersService } from 'src/users/users.service';
 
@@ -27,7 +28,7 @@ export class GamesService {
     private readonly dataSource: DataSource,
   ) {}
 
-  public async createGame(creatorId: string): Promise<Game> {
+  public async createGame(creatorId: string, gameType: GameType): Promise<Game> {
     const creator: User | null = await this.usersService.findOneById(creatorId);
     if (creator === null) {
       throw new NotFoundException('User not found');
@@ -44,6 +45,7 @@ export class GamesService {
     const game: Game = this.gamesRepository.create({
       createdBy: creator,
       status: GameStatus.Created,
+      gameType,
       gamePlayers: [participant],
     });
 
@@ -150,6 +152,7 @@ export class GamesService {
       return {
         id: gameWithCreator.id,
         status: gameWithCreator.status,
+        gameType: gameWithCreator.gameType,
         createdAt: gameWithCreator.createdAt.toISOString(),
         updatedAt: gameWithCreator.updatedAt.toISOString(),
         createdByUserId: gameWithCreator.createdBy.id,
@@ -216,6 +219,7 @@ export class GamesService {
 
       return {
         id: game.id,
+        gameType: game.gameType,
         createdAt: game.createdAt.toISOString(),
         updatedAt: game.updatedAt.toISOString(),
         createdByUserId: game.createdBy.id,

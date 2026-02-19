@@ -1,12 +1,13 @@
 import { baseApi } from '@/store/api/baseApi';
-import type { IGameCreatedResponse, IGameDetailsDto, IGameHandDto, IGameSummaryDto } from '@/dtos/Game';
+import type { IGameCreatedResponse, IGameDetailsDto, IGameHandDto, IGameSummaryDto, TGameType } from '@/dtos/Game';
 
 export const gamesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    createGame: builder.mutation<IGameCreatedResponse, void>({
-      query: () => ({
+    createGame: builder.mutation<IGameCreatedResponse, TGameType>({
+      query: (gameType) => ({
         url: '/games',
         method: 'POST',
+        body: { gameType },
       }),
       invalidatesTags: ['Games'],
     }),
