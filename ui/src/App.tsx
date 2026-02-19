@@ -7,6 +7,8 @@ import { Home } from '@/pages/Home';
 import { Login } from '@/pages/Login';
 import { NotFound } from '@/pages/NotFound';
 import { Playroom } from '@/pages/Playroom';
+import { ScoponeScientifico } from '@/pages/ScoponeScientifico';
+import { Tresette } from '@/pages/Tresette';
 
 export const App: FC = () => {
   return (
@@ -19,8 +21,8 @@ export const App: FC = () => {
 
           {/* Protected */}
           <Route element={<AuthGuard />}>
-            <Route path="/giochi/scopone-scientifico" element={<div>Scopone scientifico (regole + crea/join)</div>} />
-            <Route path="/giochi/tresette" element={<div>Tresette (regole + crea/join)</div>} />
+            <Route path="/giochi/scopone-scientifico" element={<ScoponeScientifico />} />
+            <Route path="/giochi/tresette" element={<Tresette />} />
             <Route path="/dev" element={<Playroom />} />
           </Route>
 
