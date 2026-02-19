@@ -160,7 +160,6 @@ export class GamesService {
   }
 
   public async deleteGame(gameId: string, userId: string): Promise<void> {
-    console.log(`Attempting to delete game ${gameId} by user ${userId}`);
     const game: Game | null = await this.gamesRepository.findOne({
       where: { id: gameId },
       relations: { createdBy: true },
@@ -178,7 +177,6 @@ export class GamesService {
   }
 
   public async listGames(userId: string): Promise<GameSummaryDto[]> {
-    console.log(`Listing games for user ${userId}`);
     const games: Game[] = await this.gamesRepository.find({
       relations: {
         createdBy: true,

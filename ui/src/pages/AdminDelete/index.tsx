@@ -28,10 +28,14 @@ export const AdminDelete: FC = () => {
     setSelectedGame(game);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async (): Promise<void> => {
     if (!selectedGame) return;
-    deleteGame(selectedGame.id);
-    setSelectedGame(null);
+    try {
+      await deleteGame(selectedGame.id).unwrap();
+      setSelectedGame(null);
+    } catch (error) {
+      console.error('Errore durante l\'eliminazione della partita:', error);
+    }
   };
 
   const handleCancelDelete = (): void => {
