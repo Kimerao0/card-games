@@ -58,9 +58,9 @@ src/
 │   └── shuffle.util.ts            # shuffle<T>(items): Fisher-Yates shuffle, returns new array
 └── games/
     ├── games.module.ts            # Imports Game + GameParticipant entities, UsersModule
-    ├── games.controller.ts        # POST /games, GET /games, GET /games/:id, GET /games/:id/players, GET /games/:id/join, GET /games/:id/hand, DELETE /games/:id (creator only, 204)
-    ├── games.service.ts           # createGame, listGames, getGame, getPlayers, joinGame (max 4, auto-deals on 4th), getHand, deleteGame
-    ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gameType(GameType), gamePlayers(OneToMany→GameParticipant), createdAt, updatedAt
+    ├── games.controller.ts        # POST /games, GET /games, GET /games/:id, GET /games/:id/players, GET /games/:id/join, GET /games/:id/hand, POST /games/:id/play, GET /games/:id/state, DELETE /games/:id (creator only, 204)
+    ├── games.service.ts           # createGame, listGames, getGame, getPlayers, joinGame (max 4, auto-deals on 4th via dealForGameType), getHand, playCard, getGameState, deleteGame
+    ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gameType(GameType), gamePlayers(OneToMany→GameParticipant), startingPlayerIndex(int|null), currentPlayerIndex(int|null), trickCardIds(int[]|null), trickPlayerIds(uuid[]|null), tableCardIds(int[]|null), capturedCardIdsByUser(jsonb|null), createdAt, updatedAt
     ├── game-player.entity.ts      # GameParticipant entity: composite PK(gameId+userId), handCardIds(int[] nullable), ManyToOne→Game/User
     ├── game-status.enum.ts        # GameStatus: Created → Ready → Progress → Scoring → Completed
     ├── game-type.enum.ts          # GameType: ScoponeScientifico | Tresette
@@ -69,7 +69,9 @@ src/
         ├── game-details.dto.ts    # GameDetailsDto: id, status, gameType, createdAt, updatedAt, createdByUserId, playersCount, maxPlayers
         ├── game-summary.dto.ts    # GameSummaryDto: id, status, gameType, createdAt, updatedAt, createdByUserId, playersCount, maxPlayers, isUserInGame
         ├── game-player.dto.ts     # GamePlayerDto: userId, name — returned by GET /games/:id/players
-        └── game-hand.dto.ts       # GameHandDto: gameId, userId, handCardIds (10 card IDs)
+        ├── game-hand.dto.ts       # GameHandDto: gameId, userId, handCardIds (card IDs)
+        ├── play-card.dto.ts       # PlayCardDto: cardId (@IsInt, @Min(1)) — body of POST /games/:id/play
+        └── game-state.dto.ts      # GameStateDto: id, status, gameType, startingPlayerIndex, currentPlayerIndex, tableCardIds, trickCardIds, trickPlayerIds, capturedCardIdsByUser
 ```
 
 **Configuration:** Env vars validated with Joi in `config/config.types.ts`. Required: `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`, `DB_SYNC`, `JWT_SECRET`, `JWT_EXPIRES_IN`. Optional with defaults: `DB_HOST` (localhost), `DB_PORT` (5432), `APP_MESSAGE_PREFIX`. See `docker-compose.yaml` for local PostgreSQL 16.
@@ -80,7 +82,11 @@ src/
 
 **Cards:** 40-card Napoletane deck defined in `cards/all-cards.const.ts`. Cards have numeric id (1-40), value (1-10), and color (suit). Fisher-Yates shuffle in `cards/shuffle.util.ts`. Card types shared between backend and frontend.
 
-**Games:** Each game has a creator (`createdBy`), a type (`gameType`: `ScoponeScientifico` | `Tresette`), a `GameStatus` lifecycle (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), and up to 4 players tracked via `GameParticipant` entity. The game type is required at creation via `CreateGameDto` in the `POST /games` body. Only the creator can delete a game (`ForbiddenException`). Players join via `GET /games/:id/join`; when the 4th player joins, the deck is shuffled and 10 cards are dealt to each player (stored as `handCardIds` in `game_participants`). Join uses pessimistic write lock for concurrency safety. `GET /games/:id/hand` returns a player's dealt cards. `GET /games` lists all games with player counts and membership info. `GET /games/:id` returns a single game's `GameSummaryDto` (including `status` and `isUserInGame`) — used by the frontend for polling during the waiting room. `GET /games/:id/players` returns `GamePlayerDto[]` (userId + name) ordered by join time — used by the frontend to display player names at each seat.
+**Games:** Each game has a creator (`createdBy`), a type (`gameType`: `ScoponeScientifico` | `Tresette`), a `GameStatus` lifecycle (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), and up to 4 players tracked via `GameParticipant` entity. The game type is required at creation via `CreateGameDto` in the `POST /games` body. Only the creator can delete a game (`ForbiddenException`). Players join via `GET /games/:id/join`; when the 4th player joins, `dealForGameType` is called: for Scopone Scientifico it deals 9 cards per player and places 4 on the table; for Tresette it deals 10 cards per player with no table cards. Cards are stored as `handCardIds` in `game_participants`. Join uses pessimistic write lock for concurrency safety. On dealing, a random `startingPlayerIndex` is chosen and `currentPlayerIndex` is set to it; `capturedCardIdsByUser` is initialized to an empty array per participant. `GET /games/:id/hand` returns a player's dealt cards. `GET /games` lists all games with player counts and membership info. `GET /games/:id` returns a single game's `GameSummaryDto` (including `status` and `isUserInGame`) — used by the frontend for polling during the waiting room. `GET /games/:id/players` returns `GamePlayerDto[]` (userId + name) ordered by join time — used by the frontend to display player names at each seat.
+
+**Play card (`POST /games/:id/play`, body `PlayCardDto { cardId }`):** Acquires a pessimistic write lock on the game. Validates that the caller is the current player (`currentPlayerIndex`). Removes the card from the player's hand. For Scopone Scientifico, calls `findScoponeCapture(tableCardIds, playedValue)` to determine a capture: first checks for an exact value match on the table; if none, finds all card combinations on the table that sum to the played card's value, and chooses the one with fewest cards (tie-broken by sum of card IDs, then lexicographic comparison). If a capture is found, the captured cards plus the played card are added to the player's `capturedCardIdsByUser` entry and removed from `tableCardIds`; otherwise the played card is added to `tableCardIds`. Advances `currentPlayerIndex` round-robin.
+
+**Game state (`GET /games/:id/state`):** Returns a `GameStateDto` with the live state for polling clients: `id`, `status`, `gameType`, `startingPlayerIndex`, `currentPlayerIndex`, `tableCardIds`, `trickCardIds`, `trickPlayerIds`, `capturedCardIdsByUser`. Only accessible to game participants (`ForbiddenException` otherwise).
 
 **TypeScript:** target ES2023, module `nodenext`, decorators enabled (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` but `noImplicitAny: false`.
 

@@ -7,6 +7,5 @@ export function shuffle<T>(items: readonly T[]): T[] {
     result[i] = result[j];
     result[j] = tmp;
   }
-  console.log('Shuffled items:', result);
   return result;
 }
