@@ -1,8 +1,9 @@
-import { type FC, useEffect, useMemo, useState } from 'react';
+import { type FC, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Box, CircularProgress, Typography, styled } from '@mui/material';
+import { Box, CircularProgress, Paper, Table, TableBody, TableCell, TableHead, TableRow, Typography, styled } from '@mui/material';
 import { ALL_CARDS } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
+import type { ScoponeScoreResult } from '@/dtos/Game';
 import { useGetGameQuery, useGetGameHandQuery, useGetGamePlayersQuery, useGetGameStateQuery, usePlayCardMutation } from '@/store/api/gamesApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -66,11 +67,11 @@ export const GameRoom: FC = () => {
 
   useEffect(() => {
     if (game?.status === 'Created') {
-      setPollingInterval(3000);
+      setPollingInterval(5000);
       setStatePollingInterval(0);
     } else if (game?.status === 'Ready') {
       setPollingInterval(0);
-      setStatePollingInterval(800);
+      setStatePollingInterval(5000);
     } else {
       setPollingInterval(0);
       setStatePollingInterval(0);
@@ -143,6 +144,29 @@ export const GameRoom: FC = () => {
     return { mine, partner };
   }, [currentUser, players, gameState, myIndex]);
 
+  const prevScopasByUserRef = useRef<Record<string, number>>({});
+  const [scopaNotification, setScopaNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    const current = gameState?.scopasByUser;
+    if (!current || !players) return;
+
+    const prev = prevScopasByUserRef.current;
+    for (const userId of Object.keys(current)) {
+      const prevCount = prev[userId] ?? 0;
+      const currCount = current[userId] ?? 0;
+      if (currCount > prevCount) {
+        const player = players.find((p) => p.userId === userId);
+        const name = player?.name ?? 'Giocatore';
+        setScopaNotification(name);
+        window.setTimeout(() => setScopaNotification(null), 2500);
+        break;
+      }
+    }
+
+    prevScopasByUserRef.current = { ...current };
+  }, [gameState?.scopasByUser, players]);
+
   const handlePlay = async (cardId: number) => {
     if (!gameId) return;
     if (!isMyTurn) return;
@@ -198,16 +222,31 @@ export const GameRoom: FC = () => {
     }
     if (playerCards.length > 0) {
       return (
-        <Playroom
-          cards={playerCards}
-          playerNames={playerNames}
-          tableCards={tableCards}
-          isMyTurn={isMyTurn}
-          onPlayCard={handlePlay}
-          capturedMine={capturedCounts.mine}
-          capturedPartner={capturedCounts.partner}
-          currentTurnSeat={currentTurnSeat}
-        />
+        <>
+          <Playroom
+            cards={playerCards}
+            playerNames={playerNames}
+            tableCards={tableCards}
+            isMyTurn={isMyTurn}
+            onPlayCard={handlePlay}
+            capturedMine={capturedCounts.mine}
+            capturedPartner={capturedCounts.partner}
+            currentTurnSeat={currentTurnSeat}
+          />
+          {scopaNotification !== null && (
+            <ScopaNotificationOverlay>
+              <Typography variant="h4" sx={{ fontWeight: 800, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                SCOPA!
+              </Typography>
+              <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.85)', mt: 0.5 }}>
+                {scopaNotification}
+              </Typography>
+            </ScopaNotificationOverlay>
+          )}
+          {gameState?.scoreResult !== null && gameState?.scoreResult !== undefined && players && (
+            <ScoreOverlay scoreResult={gameState.scoreResult} players={players} />
+          )}
+        </>
       );
     }
   }
@@ -223,6 +262,121 @@ export const GameRoom: FC = () => {
     </CenteredWrapper>
   );
 };
+
+interface ScoreOverlayProps {
+  readonly scoreResult: ScoponeScoreResult;
+  readonly players: { userId: string; name: string }[];
+}
+
+const ScoreOverlay: FC<ScoreOverlayProps> = ({ scoreResult, players }) => {
+  const { teamA, teamB } = scoreResult;
+
+  const winnerLabel: string = (() => {
+    if (teamA.points > teamB.points) return 'Vince Team A!';
+    if (teamB.points > teamA.points) return 'Vince Team B!';
+    return 'Pareggio!';
+  })();
+
+  const getNames = (userIds: string[]): string => userIds.map((id) => players.find((p) => p.userId === id)?.name ?? id).join(' & ');
+
+  const rows: { label: string; a: string; b: string }[] = [
+    { label: 'Carte', a: teamA.details.carte ? '✓' : '–', b: teamB.details.carte ? '✓' : '–' },
+    { label: 'Denari', a: teamA.details.denari ? '✓' : '–', b: teamB.details.denari ? '✓' : '–' },
+    { label: 'Settebello', a: teamA.details.settebello ? '✓' : '–', b: teamB.details.settebello ? '✓' : '–' },
+    { label: 'Primiera', a: teamA.details.primiera ? '✓' : '–', b: teamB.details.primiera ? '✓' : '–' },
+    { label: 'Scope', a: String(teamA.details.scope), b: String(teamB.details.scope) },
+    { label: 'Totale', a: String(teamA.points), b: String(teamB.points) },
+  ];
+
+  return (
+    <ScoreOverlayBackdrop>
+      <ScoreCard elevation={8}>
+        <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, color: '#1a3a1a' }}>
+          Partita terminata!
+        </Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, color: '#2e7d32' }}>
+          {winnerLabel}
+        </Typography>
+
+        <Table size="small" sx={{ mb: 3 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700 }}>Categoria</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>
+                Team A
+              </TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>
+                Team B
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.label}>
+                <TableCell>{row.label}</TableCell>
+                <TableCell align="center">{row.a}</TableCell>
+                <TableCell align="center">{row.b}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+
+        <Box sx={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#555' }}>
+              Team A
+            </Typography>
+            <Typography variant="body2">{getNames(teamA.userIds)}</Typography>
+          </Box>
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#555' }}>
+              Team B
+            </Typography>
+            <Typography variant="body2">{getNames(teamB.userIds)}</Typography>
+          </Box>
+        </Box>
+
+        <Box sx={{ mt: 3 }}>
+          <Link to="/" style={{ color: '#1976d2', textDecoration: 'underline', fontWeight: 600 }}>
+            Torna alla home
+          </Link>
+        </Box>
+      </ScoreCard>
+    </ScoreOverlayBackdrop>
+  );
+};
+
+const ScoreOverlayBackdrop = styled(Box)({
+  position: 'fixed',
+  inset: 0,
+  zIndex: 1300,
+  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+});
+
+const ScoreCard = styled(Paper)({
+  padding: '40px 48px',
+  maxWidth: '520px',
+  width: '90%',
+  textAlign: 'center',
+  borderRadius: '16px',
+});
+
+const ScopaNotificationOverlay = styled(Box)({
+  position: 'fixed',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  zIndex: 1200,
+  backgroundColor: 'rgba(46, 125, 50, 0.92)',
+  borderRadius: '16px',
+  padding: '24px 48px',
+  textAlign: 'center',
+  pointerEvents: 'none',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+});
 
 const RoomBackground = styled(Box)({
   width: '100vw',

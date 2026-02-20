@@ -1,8 +1,9 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 
 import { ALL_CARDS } from 'src/cards/all-cards.const';
+import { TCardColors } from 'src/cards/card.types';
 import { shuffle } from 'src/cards/shuffle.util';
 import { GameDetailsDto } from 'src/games/dtos/game-details.dto';
 import { GamePlayerDto } from 'src/games/dtos/game-player.dto';
@@ -15,6 +16,7 @@ import { UsersService } from 'src/users/users.service';
 import { Game } from './game.entity';
 import { GameParticipant } from 'src/games/game-player.entity';
 import { GameHandDto } from 'src/games/dtos/game-hand.dto';
+import { ScoponeScoreResult } from 'src/games/dtos/game-score.dto';
 import { GameStateDto } from 'src/games/dtos/game-state.dto';
 
 const MAX_PLAYERS: number = 4;
@@ -129,6 +131,10 @@ export class GamesService {
         lockedGame.tableCardIds = deal.tableCardIds;
 
         lockedGame.capturedCardIdsByUser = this.initCapturedByUser(updatedParticipants);
+
+        lockedGame.scopasByUser = this.initScopasByUser(updatedParticipants);
+        lockedGame.lastCaptureUserId = null;
+        lockedGame.scoreResult = null;
 
         lockedGame.status = GameStatus.Ready;
         await gameRepository.save(lockedGame);
@@ -294,6 +300,12 @@ export class GamesService {
     return captured;
   }
 
+  private initScopasByUser(participants: GameParticipant[]): Record<string, number> {
+    const scopas: Record<string, number> = {};
+    for (const p of participants) scopas[p.userId] = 0;
+    return scopas;
+  }
+
   private dealForGameType(gameType: GameType): { hands: number[][]; tableCardIds: number[] } {
     // Scopone scientifico: 10 carte a testa, 0 sul tavolo
     // Tressette: 10 carte a testa, 0 sul tavolo
@@ -441,6 +453,13 @@ export class GamesService {
           // Capture: remove captured cards from table, add captured + played to user's captured pile
           lockedGame.tableCardIds = tableIds.filter((id) => !capture.includes(id));
           lockedGame.capturedCardIdsByUser[userId].push(cardId, ...capture);
+          lockedGame.lastCaptureUserId = userId;
+
+          // Fare scopa: table is now empty after capture
+          if (lockedGame.tableCardIds.length === 0) {
+            if (lockedGame.scopasByUser === null) lockedGame.scopasByUser = {};
+            lockedGame.scopasByUser[userId] = (lockedGame.scopasByUser[userId] ?? 0) + 1;
+          }
         } else {
           // No capture: card goes to table
           lockedGame.tableCardIds.push(cardId);
@@ -456,6 +475,12 @@ export class GamesService {
       lockedGame.currentPlayerIndex = (lockedGame.currentPlayerIndex + 1) % MAX_PLAYERS;
 
       await gameRepository.save(lockedGame);
+
+      // Check if the game has ended (all hands empty)
+      const allHandsEmpty: boolean = participants.every((p) => (p.handCardIds ?? []).length === 0);
+      if (allHandsEmpty) {
+        await this.handleGameEnd(lockedGame, participants, manager);
+      }
     });
   }
 
@@ -535,6 +560,90 @@ export class GamesService {
     return combos[0];
   }
 
+  private async handleGameEnd(game: Game, participants: GameParticipant[], manager: EntityManager): Promise<void> {
+    // Remaining table cards go to last capturer (not a scopa — just cleanup)
+    if ((game.tableCardIds?.length ?? 0) > 0 && game.lastCaptureUserId !== null) {
+      if (game.capturedCardIdsByUser === null) game.capturedCardIdsByUser = {};
+      if (!game.capturedCardIdsByUser[game.lastCaptureUserId]) {
+        game.capturedCardIdsByUser[game.lastCaptureUserId] = [];
+      }
+      game.capturedCardIdsByUser[game.lastCaptureUserId].push(...(game.tableCardIds ?? []));
+      game.tableCardIds = [];
+    }
+
+    game.scoreResult = this.calculateScoponeScore(game, participants);
+    game.status = GameStatus.Scoring;
+    await manager.getRepository(Game).save(game);
+  }
+
+  private calculateScoponeScore(game: Game, participants: GameParticipant[]): ScoponeScoreResult {
+    const teamAIds: string[] = [participants[0].userId, participants[2].userId];
+    const teamBIds: string[] = [participants[1].userId, participants[3].userId];
+    const capturedByUser: Record<string, number[]> = game.capturedCardIdsByUser ?? {};
+
+    const teamACards: number[] = [...(capturedByUser[teamAIds[0]] ?? []), ...(capturedByUser[teamAIds[1]] ?? [])];
+    const teamBCards: number[] = [...(capturedByUser[teamBIds[0]] ?? []), ...(capturedByUser[teamBIds[1]] ?? [])];
+
+    const carteA: boolean = teamACards.length > teamBCards.length;
+    const carteB: boolean = teamBCards.length > teamACards.length;
+
+    const denariA: number = teamACards.filter((id) => this.getCardColor(id) === 'diamonds').length;
+    const denariB: number = teamBCards.filter((id) => this.getCardColor(id) === 'diamonds').length;
+    const denariWinA: boolean = denariA > denariB;
+    const denariWinB: boolean = denariB > denariA;
+
+    const settebelloA: boolean = teamACards.includes(7);
+    const settebelloB: boolean = teamBCards.includes(7);
+
+    const primA: number = this.getPrimieraScore(teamACards);
+    const primB: number = this.getPrimieraScore(teamBCards);
+    const primieraA: boolean = primA > primB;
+    const primieraB: boolean = primB > primA;
+
+    const scopasByUser: Record<string, number> = game.scopasByUser ?? {};
+    const scopeA: number = (scopasByUser[teamAIds[0]] ?? 0) + (scopasByUser[teamAIds[1]] ?? 0);
+    const scopeB: number = (scopasByUser[teamBIds[0]] ?? 0) + (scopasByUser[teamBIds[1]] ?? 0);
+
+    const pointsA: number = (carteA ? 1 : 0) + (denariWinA ? 1 : 0) + (settebelloA ? 1 : 0) + (primieraA ? 1 : 0) + scopeA;
+    const pointsB: number = (carteB ? 1 : 0) + (denariWinB ? 1 : 0) + (settebelloB ? 1 : 0) + (primieraB ? 1 : 0) + scopeB;
+
+    return {
+      teamA: {
+        userIds: teamAIds,
+        points: pointsA,
+        details: { carte: carteA, denari: denariWinA, settebello: settebelloA, primiera: primieraA, scope: scopeA },
+      },
+      teamB: {
+        userIds: teamBIds,
+        points: pointsB,
+        details: { carte: carteB, denari: denariWinB, settebello: settebelloB, primiera: primieraB, scope: scopeB },
+      },
+    };
+  }
+
+  private getPrimieraScore(cardIds: number[]): number {
+    const PRIMIERA_VALUES: Record<number, number> = { 7: 21, 6: 18, 1: 16, 5: 15, 4: 14, 3: 13, 2: 12, 8: 10, 9: 10, 10: 10 };
+    const suits: TCardColors[] = ['diamonds', 'hearts', 'spades', 'clubs'];
+    let total: number = 0;
+
+    for (const suit of suits) {
+      const suitCards: number[] = cardIds.filter((id) => this.getCardColor(id) === suit);
+      if (suitCards.length === 0) return 0; // missing a suit → primiera score is 0
+      const best: number = Math.max(...suitCards.map((id) => PRIMIERA_VALUES[this.getCardValue(id)] ?? 0));
+      total += best;
+    }
+
+    return total;
+  }
+
+  private getCardColor(cardId: number): TCardColors {
+    const card = ALL_CARDS.find((c) => c.id === cardId);
+    if (!card) {
+      throw new ConflictException('Unknown card id');
+    }
+    return card.color;
+  }
+
   public async getGameState(gameId: string, userId: string): Promise<GameStateDto> {
     const gameRepository: Repository<Game> = this.dataSource.getRepository(Game);
     const participantRepository: Repository<GameParticipant> = this.dataSource.getRepository(GameParticipant);
@@ -560,6 +669,8 @@ export class GamesService {
       trickCardIds: game.trickCardIds ?? [],
       trickPlayerIds: game.trickPlayerIds ?? [],
       capturedCardIdsByUser: game.capturedCardIdsByUser ?? {},
+      scopasByUser: game.scopasByUser ?? {},
+      scoreResult: game.scoreResult ?? null,
     };
   }
 }

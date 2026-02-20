@@ -1,5 +1,22 @@
 import type { IUser } from '@/dtos/User';
 
+export interface TeamScoreDetails {
+  readonly userIds: string[];
+  readonly points: number;
+  readonly details: {
+    readonly carte: boolean;
+    readonly denari: boolean;
+    readonly settebello: boolean;
+    readonly primiera: boolean;
+    readonly scope: number;
+  };
+}
+
+export interface ScoponeScoreResult {
+  readonly teamA: TeamScoreDetails;
+  readonly teamB: TeamScoreDetails;
+}
+
 export type TGameStatus = 'Created' | 'Ready' | 'Progress' | 'Scoring' | 'Completed';
 export type TGameType = 'ScoponeScientifico' | 'Tresette';
 
@@ -67,4 +84,7 @@ export interface IGameStateDto {
   readonly trickPlayerIds: string[];
 
   readonly capturedCardIdsByUser: Record<string, number[]>;
+
+  readonly scopasByUser: Record<string, number>;
+  readonly scoreResult: ScoponeScoreResult | null;
 }
