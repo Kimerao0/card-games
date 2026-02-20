@@ -52,3 +52,19 @@ export interface IGameCreatedResponse {
   readonly createdBy: IUser;
   readonly gamePlayers: IGameParticipant[];
 }
+
+// NEW: stato “live” della partita (per polling)
+export interface IGameStateDto {
+  readonly id: string;
+  readonly status: TGameStatus;
+  readonly gameType: TGameType;
+
+  readonly startingPlayerIndex: number | null;
+  readonly currentPlayerIndex: number | null;
+
+  readonly tableCardIds: number[];
+  readonly trickCardIds: number[];
+  readonly trickPlayerIds: string[];
+
+  readonly capturedCardIdsByUser: Record<string, number[]>;
+}

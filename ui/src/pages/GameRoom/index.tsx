@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography, styled } from '@mui/material';
 import { ALL_CARDS } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
-import { useGetGameQuery, useGetGameHandQuery, useGetGamePlayersQuery } from '@/store/api/gamesApi';
+import { useGetGameQuery, useGetGameHandQuery, useGetGamePlayersQuery, useGetGameStateQuery, usePlayCardMutation } from '@/store/api/gamesApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import { Playroom } from '@/pages/Playroom';
@@ -39,13 +39,16 @@ const WaitingRoom: FC<WaitingRoomProps> = ({ playersCount, maxPlayers, gameId })
   );
 };
 
+type TSeat = 'bottom' | 'right' | 'top' | 'left';
+
 export const GameRoom: FC = () => {
   const { id: gameId } = useParams<{ id: string }>();
   const currentUser = useAppSelector(selectCurrentUser);
+
   const [pollingInterval, setPollingInterval] = useState(0);
+  const [statePollingInterval, setStatePollingInterval] = useState(0);
 
   const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId!, { pollingInterval });
-
   const isReady = game?.status === 'Ready';
 
   const { data: handDto, isLoading: isLoadingHand } = useGetGameHandQuery(gameId!, {
@@ -54,11 +57,23 @@ export const GameRoom: FC = () => {
 
   const { data: players } = useGetGamePlayersQuery(gameId!, { skip: !isReady });
 
+  const { data: gameState } = useGetGameStateQuery(gameId!, {
+    skip: !isReady || !game?.isUserInGame,
+    pollingInterval: statePollingInterval,
+  });
+
+  const [playCard, { isLoading: isPlaying }] = usePlayCardMutation();
+
   useEffect(() => {
     if (game?.status === 'Created') {
       setPollingInterval(3000);
+      setStatePollingInterval(0);
+    } else if (game?.status === 'Ready') {
+      setPollingInterval(0);
+      setStatePollingInterval(800);
     } else {
       setPollingInterval(0);
+      setStatePollingInterval(0);
     }
   }, [game?.status]);
 
@@ -66,6 +81,11 @@ export const GameRoom: FC = () => {
     if (!handDto?.handCardIds) return [];
     return handDto.handCardIds.map((id) => ALL_CARDS[id - 1]);
   }, [handDto]);
+
+  const myIndex = useMemo(() => {
+    if (!players || !currentUser) return -1;
+    return players.findIndex((p) => p.userId === currentUser.id);
+  }, [players, currentUser]);
 
   const playerNames = useMemo(() => {
     if (!players || players.length < 2 || !currentUser) return undefined;
@@ -80,6 +100,60 @@ export const GameRoom: FC = () => {
       left: getName(3),
     };
   }, [players, currentUser]);
+
+  const isMyTurn = useMemo(() => {
+    if (!currentUser || !players || !gameState) return false;
+    if (gameState.currentPlayerIndex === null || gameState.currentPlayerIndex === undefined) return false;
+    const currentTurnPlayer = players[gameState.currentPlayerIndex];
+    if (!currentTurnPlayer) return false;
+    return currentTurnPlayer.userId === currentUser.id;
+  }, [currentUser, players, gameState]);
+
+  const currentTurnSeat: TSeat | undefined = useMemo(() => {
+    if (!players || !gameState) return undefined;
+    if (gameState.currentPlayerIndex === null || gameState.currentPlayerIndex === undefined) return undefined;
+    if (myIndex === -1) return undefined;
+
+    // seat relativo all'utente:
+    // bottom = me (offset 0), right = offset 1, top = offset 2, left = offset 3
+    const offset = (gameState.currentPlayerIndex - myIndex + players.length) % players.length;
+    if (offset === 0) return 'bottom';
+    if (offset === 1) return 'right';
+    if (offset === 2) return 'top';
+    return 'left';
+  }, [players, gameState, myIndex]);
+
+  const tableCards: ICard[] = useMemo(() => {
+    if (!gameState?.tableCardIds) return [];
+    return gameState.tableCardIds.map((id) => ALL_CARDS[id - 1]);
+  }, [gameState?.tableCardIds]);
+
+  const capturedCounts = useMemo(() => {
+    if (!currentUser || !players || !gameState || myIndex === -1) {
+      return { mine: 0, partner: 0 };
+    }
+
+    const byUser = gameState.capturedCardIdsByUser ?? {};
+    const mine = (byUser[currentUser.id] ?? []).length;
+
+    const partnerIndex = (myIndex + 2) % players.length;
+    const partnerId = players[partnerIndex]?.userId;
+    const partner = partnerId ? (byUser[partnerId] ?? []).length : 0;
+
+    return { mine, partner };
+  }, [currentUser, players, gameState, myIndex]);
+
+  const handlePlay = async (cardId: number) => {
+    if (!gameId) return;
+    if (!isMyTurn) return;
+    if (isPlaying) return;
+
+    try {
+      await playCard({ gameId, cardId }).unwrap();
+    } catch {
+      // polling riallinea
+    }
+  };
 
   if (isLoadingGame && !game) {
     return (
@@ -123,7 +197,18 @@ export const GameRoom: FC = () => {
       );
     }
     if (playerCards.length > 0) {
-      return <Playroom cards={playerCards} playerNames={playerNames} />;
+      return (
+        <Playroom
+          cards={playerCards}
+          playerNames={playerNames}
+          tableCards={tableCards}
+          isMyTurn={isMyTurn}
+          onPlayCard={handlePlay}
+          capturedMine={capturedCounts.mine}
+          capturedPartner={capturedCounts.partner}
+          currentTurnSeat={currentTurnSeat}
+        />
+      );
     }
   }
 

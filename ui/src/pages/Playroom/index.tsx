@@ -1,7 +1,6 @@
 import { type FC } from 'react';
 import { Box, styled } from '@mui/material';
 import { CardsField } from '@/pages/Playroom/CardsField';
-import { ALL_CARDS } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
 
 interface PlayerNames {
@@ -11,16 +10,35 @@ interface PlayerNames {
   readonly bottom?: string;
 }
 
+type TSeat = 'bottom' | 'right' | 'top' | 'left';
+
 interface PlayroomProps {
   readonly cards?: ICard[];
+  readonly tableCards?: ICard[];
   readonly playerNames?: PlayerNames;
+  readonly isMyTurn?: boolean;
+  readonly onPlayCard?: (cardId: number) => void;
+  readonly capturedMine?: number;
+  readonly capturedPartner?: number;
+  readonly currentTurnSeat?: TSeat;
 }
 
-export const Playroom: FC<PlayroomProps> = ({ cards, playerNames }) => {
-  const playerHand: ICard[] = cards ?? Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 1).map((id) => ALL_CARDS[id - 1]);
+export const Playroom: FC<PlayroomProps> = ({ cards, tableCards, playerNames, isMyTurn, onPlayCard, capturedMine, capturedPartner, currentTurnSeat }) => {
+  const playerHand: ICard[] = cards ?? [];
+  const table: ICard[] = tableCards ?? [];
+
   return (
     <PlayroomWrapper>
-      <CardsField cards={playerHand} playerNames={playerNames} />
+      <CardsField
+        cards={playerHand}
+        tableCards={table}
+        playerNames={playerNames}
+        isMyTurn={!!isMyTurn}
+        onPlayCard={onPlayCard}
+        capturedMine={capturedMine ?? 0}
+        capturedPartner={capturedPartner ?? 0}
+        currentTurnSeat={currentTurnSeat}
+      />
     </PlayroomWrapper>
   );
 };
@@ -28,7 +46,7 @@ export const Playroom: FC<PlayroomProps> = ({ cards, playerNames }) => {
 const PlayroomWrapper = styled(Box)({
   width: '100vw',
   height: '100vh',
-  backgroundColor: '#1f7a1f', // verde tavolo
+  backgroundColor: '#1f7a1f',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
