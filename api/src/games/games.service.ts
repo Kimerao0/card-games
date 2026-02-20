@@ -295,10 +295,10 @@ export class GamesService {
   }
 
   private dealForGameType(gameType: GameType): { hands: number[][]; tableCardIds: number[] } {
-    // Scopone scientifico: 9 a testa + 4 sul tavolo
-    // Tressette: 10 a testa + 0 sul tavolo
-    const handSize: number = gameType === GameType.ScoponeScientifico ? 9 : 10;
-    const tableSize: number = gameType === GameType.ScoponeScientifico ? 4 : 0;
+    // Scopone scientifico: 10 carte a testa, 0 sul tavolo
+    // Tressette: 10 carte a testa, 0 sul tavolo
+    const handSize: number = 10;
+    const tableSize: number = 0;
 
     const shuffledDeck = shuffle(ALL_CARDS);
     const cardIds: number[] = shuffledDeck.map((c) => c.id);
@@ -316,7 +316,7 @@ export class GamesService {
       cursor += handSize;
     }
 
-    const tableCardIds: number[] = cardIds.slice(cursor, cursor + tableSize);
+    const tableCardIds: number[] = []; // sempre vuoto all'inizio
 
     return { hands, tableCardIds };
   }
