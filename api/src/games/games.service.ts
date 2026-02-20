@@ -219,6 +219,7 @@ export class GamesService {
 
       return {
         id: game.id,
+        status: game.status,
         gameType: game.gameType,
         createdAt: game.createdAt.toISOString(),
         updatedAt: game.updatedAt.toISOString(),
@@ -228,6 +229,40 @@ export class GamesService {
         isUserInGame,
       };
     });
+  }
+
+  public async getGame(gameId: string, userId: string): Promise<GameSummaryDto> {
+    const game: Game | null = await this.gamesRepository.findOne({
+      where: { id: gameId },
+      relations: { createdBy: true },
+    });
+
+    if (game === null) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const participantRepository: Repository<GameParticipant> = this.dataSource.getRepository(GameParticipant);
+
+    const playersCount: number = await participantRepository.count({ where: { gameId } });
+
+    const participantEntry: GameParticipant | null = await participantRepository.findOne({
+      where: { gameId, userId },
+      select: { gameId: true, userId: true },
+    });
+
+    const isUserInGame: boolean = participantEntry !== null;
+
+    return {
+      id: game.id,
+      status: game.status,
+      gameType: game.gameType,
+      createdAt: game.createdAt.toISOString(),
+      updatedAt: game.updatedAt.toISOString(),
+      createdByUserId: game.createdBy.id,
+      playersCount,
+      maxPlayers: MAX_PLAYERS,
+      isUserInGame,
+    };
   }
 
   public async getHand(gameId: string, userId: string): Promise<GameHandDto> {

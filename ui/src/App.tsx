@@ -10,6 +10,7 @@ import { Playroom } from '@/pages/Playroom';
 import { ScoponeScientifico } from '@/pages/ScoponeScientifico';
 import { Tresette } from '@/pages/Tresette';
 import { AdminDelete } from '@/pages/AdminDelete';
+import { GameRoom } from '@/pages/GameRoom';
 
 export const App: FC = () => {
   return (
@@ -25,6 +26,7 @@ export const App: FC = () => {
             <Route path="/giochi/scopone-scientifico" element={<ScoponeScientifico />} />
             <Route path="/giochi/tresette" element={<Tresette />} />
             <Route path="/dev" element={<Playroom />} />
+            <Route path="/game/:id" element={<GameRoom />} />
             <Route path="/admin/delete" element={<AdminDelete />} />
           </Route>
 

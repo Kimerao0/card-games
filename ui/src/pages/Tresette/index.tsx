@@ -57,7 +57,8 @@ export const Tresette: FC = () => {
 
   const handleCreateGame = async (): Promise<void> => {
     try {
-      await createGame('Tresette').unwrap();
+      const createdGame = await createGame('Tresette').unwrap();
+      navigate(`/game/${createdGame.id}`);
     } catch (_err) {
       // Error surfaces via RTK Query hook state
     }
@@ -67,7 +68,7 @@ export const Tresette: FC = () => {
     try {
       await joinGame(gameId).unwrap();
       setJoinDialogOpen(false);
-      navigate('/dev');
+      navigate(`/game/${gameId}`);
     } catch (_err) {
       // Error surfaces via RTK Query hook state
     }

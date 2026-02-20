@@ -1,7 +1,9 @@
+import { GameStatus } from 'src/games/game-status.enum';
 import { GameType } from 'src/games/game-type.enum';
 
 export interface GameSummaryDto {
   readonly id: string;
+  readonly status: GameStatus;
   readonly gameType: GameType;
   readonly createdAt: string;
   readonly updatedAt: string;

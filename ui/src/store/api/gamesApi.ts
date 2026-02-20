@@ -34,7 +34,11 @@ export const gamesApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Games'],
     }),
+    getGame: builder.query<IGameSummaryDto, string>({
+      query: (gameId) => `/games/${gameId}`,
+      providesTags: (_result, _error, gameId) => [{ type: 'Games', id: gameId }],
+    }),
   }),
 });
 
-export const { useCreateGameMutation, useListGamesQuery, useJoinGameMutation, useGetGameHandQuery, useDeleteGameMutation } = gamesApi;
+export const { useCreateGameMutation, useListGamesQuery, useJoinGameMutation, useGetGameHandQuery, useDeleteGameMutation, useGetGameQuery } = gamesApi;

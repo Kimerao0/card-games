@@ -73,7 +73,8 @@ export const ScoponeScientifico: FC = () => {
 
   const handleCreateGame = async (): Promise<void> => {
     try {
-      await createGame('ScoponeScientifico').unwrap();
+      const createdGame = await createGame('ScoponeScientifico').unwrap();
+      navigate(`/game/${createdGame.id}`);
     } catch (_err) {
       // Error surfaces via RTK Query hook state
     }
@@ -83,7 +84,7 @@ export const ScoponeScientifico: FC = () => {
     try {
       await joinGame(gameId).unwrap();
       setJoinDialogOpen(false);
-      navigate('/dev');
+      navigate(`/game/${gameId}`);
     } catch (_err) {
       // Error surfaces via RTK Query hook state
     }

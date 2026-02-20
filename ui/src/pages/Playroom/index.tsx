@@ -2,11 +2,14 @@ import { type FC } from 'react';
 import { Box, styled } from '@mui/material';
 import { CardsField } from '@/pages/Playroom/CardsField';
 import { ALL_CARDS } from '@/constants/cardsData';
+import type { ICard } from '@/dtos/Card';
 
-export const Playroom: FC = () => {
-  // random array di 10 numeri da 1 a 40
-  const randomCardIds = Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 1);
-  const playerHand = randomCardIds.map((id) => ALL_CARDS[id - 1]); // placeholder cards
+interface PlayroomProps {
+  readonly cards?: ICard[];
+}
+
+export const Playroom: FC<PlayroomProps> = ({ cards }) => {
+  const playerHand: ICard[] = cards ?? Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 1).map((id) => ALL_CARDS[id - 1]);
   return (
     <PlayroomWrapper>
       <CardsField cards={playerHand} />

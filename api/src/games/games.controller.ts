@@ -36,4 +36,9 @@ export class GamesController {
   public async getHand(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameHandDto> {
     return this.gamesService.getHand(gameId, user.sub);
   }
+
+  @Get(':id')
+  public async getGame(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameSummaryDto> {
+    return this.gamesService.getGame(gameId, user.sub);
+  }
 }

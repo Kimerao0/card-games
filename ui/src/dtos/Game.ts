@@ -16,6 +16,7 @@ export interface IGameDetailsDto {
 
 export interface IGameSummaryDto {
   readonly id: string;
+  readonly status: TGameStatus;
   readonly gameType: TGameType;
   readonly createdAt: string;
   readonly updatedAt: string;
