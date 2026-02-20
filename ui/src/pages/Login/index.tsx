@@ -104,8 +104,6 @@ export const Login: FC = () => {
       await login({ email: loginEmail.trim(), password: loginPassword }).unwrap();
       // Navigate to the originally requested page (safe internal path)
       navigate(from, { replace: true });
-      // Refreshing the page after login can help ensure all auth-dependent data is up-to-date, but it's optional.
-      window.location.reload();
     } catch {
       // handled via loginError
     }

@@ -3,7 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography, styled } from '@mui/material';
 import { ALL_CARDS } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
-import { useGetGameQuery, useGetGameHandQuery } from '@/store/api/gamesApi';
+import { useGetGameQuery, useGetGameHandQuery, useGetGamePlayersQuery } from '@/store/api/gamesApi';
+import { useAppSelector } from '@/store/hooks';
+import { selectCurrentUser } from '@/store/slices/authSlice';
 import { Playroom } from '@/pages/Playroom';
 
 interface WaitingRoomProps {
@@ -39,13 +41,18 @@ const WaitingRoom: FC<WaitingRoomProps> = ({ playersCount, maxPlayers, gameId })
 
 export const GameRoom: FC = () => {
   const { id: gameId } = useParams<{ id: string }>();
+  const currentUser = useAppSelector(selectCurrentUser);
   const [pollingInterval, setPollingInterval] = useState(0);
 
   const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId!, { pollingInterval });
 
+  const isReady = game?.status === 'Ready';
+
   const { data: handDto, isLoading: isLoadingHand } = useGetGameHandQuery(gameId!, {
-    skip: game?.status !== 'Ready' || !game?.isUserInGame,
+    skip: !isReady || !game?.isUserInGame,
   });
+
+  const { data: players } = useGetGamePlayersQuery(gameId!, { skip: !isReady });
 
   useEffect(() => {
     if (game?.status === 'Created') {
@@ -59,6 +66,20 @@ export const GameRoom: FC = () => {
     if (!handDto?.handCardIds) return [];
     return handDto.handCardIds.map((id) => ALL_CARDS[id - 1]);
   }, [handDto]);
+
+  const playerNames = useMemo(() => {
+    if (!players || players.length < 2 || !currentUser) return undefined;
+    const currentIndex = players.findIndex((p) => p.userId === currentUser.id);
+    if (currentIndex === -1) return undefined;
+    const total = players.length;
+    const getName = (offset: number): string | undefined => players[(currentIndex + offset) % total]?.name;
+    return {
+      bottom: getName(0),
+      right: getName(1),
+      top: getName(2),
+      left: getName(3),
+    };
+  }, [players, currentUser]);
 
   if (isLoadingGame && !game) {
     return (
@@ -102,7 +123,7 @@ export const GameRoom: FC = () => {
       );
     }
     if (playerCards.length > 0) {
-      return <Playroom cards={playerCards} />;
+      return <Playroom cards={playerCards} playerNames={playerNames} />;
     }
   }
 

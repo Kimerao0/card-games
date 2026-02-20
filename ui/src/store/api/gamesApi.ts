@@ -1,5 +1,5 @@
 import { baseApi } from '@/store/api/baseApi';
-import type { IGameCreatedResponse, IGameDetailsDto, IGameHandDto, IGameSummaryDto, TGameType } from '@/dtos/Game';
+import type { IGameCreatedResponse, IGameDetailsDto, IGameHandDto, IGamePlayerDto, IGameSummaryDto, TGameType } from '@/dtos/Game';
 
 export const gamesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -38,7 +38,11 @@ export const gamesApi = baseApi.injectEndpoints({
       query: (gameId) => `/games/${gameId}`,
       providesTags: (_result, _error, gameId) => [{ type: 'Games', id: gameId }],
     }),
+    getGamePlayers: builder.query<IGamePlayerDto[], string>({
+      query: (gameId) => `/games/${gameId}/players`,
+      providesTags: (_result, _error, gameId) => [{ type: 'Games', id: `${gameId}-players` }],
+    }),
   }),
 });
 
-export const { useCreateGameMutation, useListGamesQuery, useJoinGameMutation, useGetGameHandQuery, useDeleteGameMutation, useGetGameQuery } = gamesApi;
+export const { useCreateGameMutation, useListGamesQuery, useJoinGameMutation, useGetGameHandQuery, useDeleteGameMutation, useGetGameQuery, useGetGamePlayersQuery } = gamesApi;

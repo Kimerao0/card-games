@@ -11,10 +11,12 @@ import { ScoponeScientifico } from '@/pages/ScoponeScientifico';
 import { Tresette } from '@/pages/Tresette';
 import { AdminDelete } from '@/pages/AdminDelete';
 import { GameRoom } from '@/pages/GameRoom';
+import { AuthInitializer } from '@/components/AuthInitializer';
 
 export const App: FC = () => {
   return (
     <BrowserRouter>
+      <AuthInitializer />
       <Routes>
         <Route element={<AppLayout />}>
           {/* Public */}

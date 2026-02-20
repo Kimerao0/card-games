@@ -38,6 +38,11 @@ export interface IGameParticipant {
   readonly handCardIds: number[] | null;
 }
 
+export interface IGamePlayerDto {
+  readonly userId: string;
+  readonly name: string;
+}
+
 export interface IGameCreatedResponse {
   readonly id: string;
   readonly status: TGameStatus;

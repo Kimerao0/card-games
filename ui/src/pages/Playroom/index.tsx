@@ -4,15 +4,23 @@ import { CardsField } from '@/pages/Playroom/CardsField';
 import { ALL_CARDS } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
 
-interface PlayroomProps {
-  readonly cards?: ICard[];
+interface PlayerNames {
+  readonly top?: string;
+  readonly left?: string;
+  readonly right?: string;
+  readonly bottom?: string;
 }
 
-export const Playroom: FC<PlayroomProps> = ({ cards }) => {
+interface PlayroomProps {
+  readonly cards?: ICard[];
+  readonly playerNames?: PlayerNames;
+}
+
+export const Playroom: FC<PlayroomProps> = ({ cards, playerNames }) => {
   const playerHand: ICard[] = cards ?? Array.from({ length: 10 }, () => Math.floor(Math.random() * 40) + 1).map((id) => ALL_CARDS[id - 1]);
   return (
     <PlayroomWrapper>
-      <CardsField cards={playerHand} />
+      <CardsField cards={playerHand} playerNames={playerNames} />
     </PlayroomWrapper>
   );
 };

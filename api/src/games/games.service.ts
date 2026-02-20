@@ -5,6 +5,7 @@ import { DataSource, In, Repository } from 'typeorm';
 import { ALL_CARDS } from 'src/cards/all-cards.const';
 import { shuffle } from 'src/cards/shuffle.util';
 import { GameDetailsDto } from 'src/games/dtos/game-details.dto';
+import { GamePlayerDto } from 'src/games/dtos/game-player.dto';
 import { GameSummaryDto } from 'src/games/dtos/game-summary.dto';
 import { GameStatus } from 'src/games/game-status.enum';
 import { GameType } from 'src/games/game-type.enum';
@@ -263,6 +264,23 @@ export class GamesService {
       maxPlayers: MAX_PLAYERS,
       isUserInGame,
     };
+  }
+
+  public async getPlayers(gameId: string): Promise<GamePlayerDto[]> {
+    const game: Game | null = await this.gamesRepository.findOne({ where: { id: gameId } });
+    if (game === null) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const participants: GameParticipant[] = await this.dataSource.getRepository(GameParticipant).find({
+      where: { gameId },
+      order: { createdAt: 'ASC' },
+    });
+
+    return participants.map((p): GamePlayerDto => ({
+      userId: p.userId,
+      name: p.user.name,
+    }));
   }
 
   public async getHand(gameId: string, userId: string): Promise<GameHandDto> {

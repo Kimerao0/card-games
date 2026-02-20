@@ -5,11 +5,20 @@ import styled from '@emotion/styled';
 import { type FC, useEffect, useMemo, useState } from 'react';
 import RetroImg from '@/assets/cards/napoletane/retro.jpg';
 
-interface CardsFieldProps {
-  cards: ICard[];
+interface PlayerNames {
+  readonly top?: string;
+  readonly left?: string;
+  readonly right?: string;
+  readonly bottom?: string;
 }
 
-export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
+interface CardsFieldProps {
+  cards: ICard[];
+  playerNames?: PlayerNames;
+}
+
+export const CardsField: FC<CardsFieldProps> = ({ cards, playerNames }) => {
+  console.log('playerNames:', playerNames);
   const [playerCards, setPlayerCards] = useState<ICard[]>(cards);
   const [playedCardId, setPlayedCardId] = useState<number | null>(null);
 
@@ -38,33 +47,44 @@ export const CardsField: FC<CardsFieldProps> = ({ cards }) => {
 
   return (
     <Column style={{ position: 'relative' }}>
-      <TopHandWrapper>
-        {Array.from({ length: 10 }).map((_, index) => (
-          <div key={`first-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
-        ))}
-      </TopHandWrapper>
+      <TopSeatWrapper>
+        <TopHandWrapper>
+          {Array.from({ length: 10 }).map((_, index) => (
+            <div key={`first-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
+          ))}
+        </TopHandWrapper>
+        {playerNames?.top && <NameLabel>{playerNames.top}</NameLabel>}
+      </TopSeatWrapper>
 
       <Row>
-        <VerticalHandWrapper>
-          {Array.from({ length: 10 }).map((_, index) => (
-            <div key={`left-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
-          ))}
-        </VerticalHandWrapper>
+        <SideSeatWrapper>
+          <VerticalHandWrapper>
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div key={`left-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
+            ))}
+          </VerticalHandWrapper>
+          {playerNames?.left && <NameLabel>{playerNames.left}</NameLabel>}
+        </SideSeatWrapper>
 
         <CentralField />
 
-        <VerticalHandWrapper>
-          {Array.from({ length: 10 }).map((_, index) => (
-            <div key={`right-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
-          ))}
-        </VerticalHandWrapper>
+        <SideSeatWrapper>
+          <VerticalHandWrapper>
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div key={`right-${index}`} style={{ backgroundImage: `url(${RetroImg})` }} />
+            ))}
+          </VerticalHandWrapper>
+          {playerNames?.right && <NameLabel>{playerNames.right}</NameLabel>}
+        </SideSeatWrapper>
       </Row>
 
-      <FullRow>
-        {sortedCards.map((card, index) => (
-          <PlayerCard key={`player-${card.id}-${index}`} card={card} isPlayed={playedCardId === card.id} onPlay={() => handlePlayCard(card.id)} />
-        ))}
-      </FullRow>
+      <BottomSeatWrapper>
+        <FullRow>
+          {sortedCards.map((card, index) => (
+            <PlayerCard key={`player-${card.id}-${index}`} card={card} isPlayed={playedCardId === card.id} onPlay={() => handlePlayCard(card.id)} />
+          ))}
+        </FullRow>
+      </BottomSeatWrapper>
     </Column>
   );
 };
@@ -138,4 +158,44 @@ export const Row = styled('div')({
   width: '100%',
   display: 'flex',
   flexDirection: 'row',
+});
+
+const NameLabel = styled('span')({
+  position: 'absolute',
+  bottom: 0,
+  display: 'block',
+  textAlign: 'center',
+  color: 'rgba(255, 255, 255, 0.9)',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  letterSpacing: '0.03em',
+  backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  borderRadius: '10px',
+  padding: '2px 10px',
+  whiteSpace: 'nowrap',
+  userSelect: 'none',
+});
+
+const TopSeatWrapper = styled('div')({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '4px',
+  position: 'relative',
+});
+
+const SideSeatWrapper = styled('div')({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  position: 'relative',
+});
+
+const BottomSeatWrapper = styled('div')({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '4px',
 });

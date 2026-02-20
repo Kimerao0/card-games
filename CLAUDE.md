@@ -68,8 +68,8 @@ api/src/
 │   └── shuffle.util.ts            # shuffle<T>(items): Fisher-Yates shuffle, ritorna nuovo array
 └── games/
     ├── games.module.ts            # Importa Game + GameParticipant entities, UsersModule
-    ├── games.controller.ts        # POST /games (body: CreateGameDto), GET /games, GET /games/:id, GET /games/:id/join, GET /games/:id/hand, DELETE /games/:id (solo creator, 204)
-    ├── games.service.ts           # createGame, listGames, getGame, joinGame (max 4, auto-distribuzione al 4°), getHand, deleteGame
+    ├── games.controller.ts        # POST /games, GET /games, GET /games/:id, GET /games/:id/players, GET /games/:id/join, GET /games/:id/hand, DELETE /games/:id (solo creator, 204)
+    ├── games.service.ts           # createGame, listGames, getGame, getPlayers, joinGame (max 4, auto-distribuzione al 4°), getHand, deleteGame
     ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gameType(GameType), gamePlayers(OneToMany→GameParticipant), createdAt, updatedAt
     ├── game-player.entity.ts      # GameParticipant entity: PK composita(gameId+userId), handCardIds(int[] nullable), ManyToOne→Game/User
     ├── game-status.enum.ts        # GameStatus: Created → Ready → Progress → Scoring → Completed
@@ -78,6 +78,7 @@ api/src/
         ├── create-game.dto.ts     # CreateGameDto: gameType (@IsEnum(GameType))
         ├── game-details.dto.ts    # GameDetailsDto: id, status, gameType, createdAt, updatedAt, createdByUserId, playersCount, maxPlayers
         ├── game-summary.dto.ts    # GameSummaryDto: id, status, gameType, createdAt, updatedAt, createdByUserId, playersCount, maxPlayers, isUserInGame
+        ├── game-player.dto.ts     # GamePlayerDto: userId, name — returned by GET /games/:id/players
         └── game-hand.dto.ts       # GameHandDto: gameId, userId, handCardIds (10 card IDs)
 ```
 
@@ -89,7 +90,7 @@ api/src/
 
 **Cards:** Mazzo Napoletane da 40 carte definito in `cards/all-cards.const.ts`. Ogni carta ha id numerico (1-40), valore (1-10) e colore (seme). Fisher-Yates shuffle in `cards/shuffle.util.ts`.
 
-**Games:** Ogni partita ha un creatore (`createdBy`), un tipo (`gameType`: `ScoponeScientifico` | `Tresette`), un ciclo di vita `GameStatus` (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), e fino a 4 giocatori tracciati via entity `GameParticipant`. Il tipo viene passato alla creazione tramite `CreateGameDto` nel body di `POST /games`. Solo il creatore può cancellare (`ForbiddenException`). I giocatori si uniscono via `GET /games/:id/join`; quando il 4° giocatore entra, il mazzo viene mescolato e 10 carte distribuite a ciascun giocatore (salvate come `handCardIds` in `game_participants`). Il join usa pessimistic write lock per sicurezza in concorrenza. `GET /games/:id/hand` ritorna le carte distribuite al giocatore. `GET /games` elenca tutte le partite con conteggio giocatori e info di appartenenza. `GET /games/:id` ritorna il `GameSummaryDto` di una singola partita (include `status` e `isUserInGame`) — usato dal frontend per il polling nella waiting room.
+**Games:** Ogni partita ha un creatore (`createdBy`), un tipo (`gameType`: `ScoponeScientifico` | `Tresette`), un ciclo di vita `GameStatus` (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), e fino a 4 giocatori tracciati via entity `GameParticipant`. Il tipo viene passato alla creazione tramite `CreateGameDto` nel body di `POST /games`. Solo il creatore può cancellare (`ForbiddenException`). I giocatori si uniscono via `GET /games/:id/join`; quando il 4° giocatore entra, il mazzo viene mescolato e 10 carte distribuite a ciascun giocatore (salvate come `handCardIds` in `game_participants`). Il join usa pessimistic write lock per sicurezza in concorrenza. `GET /games/:id/hand` ritorna le carte distribuite al giocatore. `GET /games` elenca tutte le partite con conteggio giocatori e info di appartenenza. `GET /games/:id` ritorna il `GameSummaryDto` di una singola partita (include `status` e `isUserInGame`) — usato dal frontend per il polling nella waiting room. `GET /games/:id/players` ritorna `GamePlayerDto[]` (userId + name) ordinati per join time — usato dal frontend per mostrare i nomi dei giocatori accanto ai rispettivi posti.
 
 **TypeScript:** target ES2023, module `nodenext`, decorator support abilitato (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` ma `noImplicitAny: false`.
 
@@ -111,9 +112,11 @@ Frontend React 19 + TypeScript + Vite.
 
 **App Layout:** `ui/src/components/AppLayout.tsx` — full viewport flexbox wrapper combining `AppHeader` with `<Outlet />` for nested route content.
 
-**Playroom layout:** `ui/src/pages/Playroom/` contains the game table UI. `CardsField` renders a 4-player table (top/left/right opponents show card backs, bottom shows current player's hand sorted by suit then value). `PlayerCard` handles card display with click-to-play CSS transition animation. Accepts optional `cards?: ICard[]` prop — falls back to random cards when not provided (used by `/dev`).
+**Playroom layout:** `ui/src/pages/Playroom/` contains the game table UI. `CardsField` renders a 4-player table (top/left/right opponents show card backs, bottom shows current player's hand sorted by suit then value). `PlayerCard` handles card display with click-to-play CSS transition animation. Accepts optional `cards?: ICard[]` prop (falls back to random for `/dev`) and `playerNames?: { top, left, right, bottom }` prop to render name labels next to each seat.
 
-**GameRoom page:** `ui/src/pages/GameRoom/index.tsx` handles `/game/:id`. Polls `GET /games/:id` every 3 seconds while status is `Created` (WaitingRoom with seat indicators), then switches to Playroom with the player's real dealt cards once status is `Ready`.
+**GameRoom page:** `ui/src/pages/GameRoom/index.tsx` handles `/game/:id`. Polls `GET /games/:id` every 3 seconds while status is `Created` (WaitingRoom with seat indicators). Once `Ready`, fetches the player's hand and player list; assigns seats clockwise by join order (current user at bottom) and passes `playerNames` to `<Playroom>`.
+
+**Auth persistence:** `ui/src/components/AuthInitializer.tsx` (mounted in `App.tsx`) re-hydrates the user from `GET /users/profile` on page refresh when a stored token exists but the Redux user is null. Dispatches `logout()` on 401. The store's `listenerMiddleware` resets the full RTK Query cache on logout to prevent stale profile data from leaking across user sessions.
 
 **Page components** are organized as `ui/src/pages/<PageName>/index.tsx`.
 

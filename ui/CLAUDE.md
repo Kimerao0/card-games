@@ -31,13 +31,14 @@ src/
 ├── components/
 │   ├── AppHeader.tsx                 # Top navigation bar (logo link, user name/Guest, login/logout icon button)
 │   ├── AppLayout.tsx                 # Layout wrapper (AppHeader + Outlet, full viewport flexbox column)
-│   └── AuthGuard.tsx                 # Protected route wrapper (checks auth, redirects to /login with return path)
+│   ├── AuthGuard.tsx                 # Protected route wrapper (checks auth, redirects to /login with return path)
+│   └── AuthInitializer.tsx           # Null-render component: re-hydrates user from GET /users/profile on page refresh; dispatches logout() on 401
 ├── constants/
 │   └── cardsData.ts                  # CARDS_IMAGES, CARDS_LABELS, ALL_CARDS, SUITS_ORDER
 ├── dtos/
 │   ├── Auth.ts                       # ILoginRequest, IRegisterRequest, IAuthResponse
 │   ├── Card.ts                       # ICard { id, value, color }, TCardColors
-│   ├── Game.ts                       # IGameDetailsDto, IGameSummaryDto, IGameHandDto, IGameParticipant, IGameCreatedResponse, TGameStatus, TGameType
+│   ├── Game.ts                       # IGameDetailsDto, IGameSummaryDto, IGameHandDto, IGameParticipant, IGameCreatedResponse, IGamePlayerDto, TGameStatus, TGameType
 │   └── User.ts                       # IUser { id, email, name }
 ├── pages/
 │   ├── Home/index.tsx                # Landing page with game selection buttons
@@ -48,21 +49,21 @@ src/
 │   ├── GameRoom/
 │   │   └── index.tsx                 # Game room page for /game/:id — WaitingRoom (polls until Ready) or Playroom with real dealt cards
 │   └── Playroom/
-│       ├── index.tsx                 # Game table wrapper (green background, full viewport); accepts optional cards?: ICard[] prop (falls back to random for /dev)
+│       ├── index.tsx                 # Game table wrapper; accepts optional cards?: ICard[] (falls back to random for /dev) and playerNames?: {top,left,right,bottom}
 │       └── CardsField/
-│           ├── index.tsx             # 4-player table layout (opponents show card backs, bottom shows player hand)
+│           ├── index.tsx             # 4-player table layout; accepts optional playerNames prop — renders name labels next to each seat
 │           └── PlayerCard/
 │               └── index.tsx         # Individual card with click-to-play CSS transition animation
 ├── store/
-│   ├── index.ts                      # configureStore (baseApi reducer + middleware, authSlice reducer)
+│   ├── index.ts                      # configureStore; listenerMiddleware resets RTK Query cache (baseApi.util.resetApiState) on logout
 │   ├── hooks.ts                      # useAppDispatch, useAppSelector typed hooks
 │   ├── api/
 │   │   ├── baseApi.ts                # RTK Query base API (baseUrl: localhost:3000, Bearer token injection, tag types)
 │   │   ├── authApi.ts                # login, register mutations (auto-dispatch setCredentials)
 │   │   ├── usersApi.ts               # getProfile query (tag: UserProfile)
-│   │   └── gamesApi.ts              # createGame, listGames, joinGame, getGameHand, deleteGame
+│   │   └── gamesApi.ts              # createGame, listGames, getGame, getGamePlayers, joinGame, getGameHand, deleteGame
 │   └── slices/
-│       └── authSlice.ts              # Auth state: user, token, initialized; persists token in localStorage
+│       └── authSlice.ts              # Auth state: user, token, initialized; persists token in localStorage. Selectors: selectCurrentUser, selectToken, selectIsAuthenticated, selectAuthInitialized
 ├── theme/
 │   └── index.ts                      # MUI theme (light mode, primary #1976d2, secondary #9c27b0)
 └── utils/
@@ -89,7 +90,9 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 
 **AuthGuard** (`components/AuthGuard.tsx`): Wraps protected routes. Checks `selectIsAuthenticated` and `selectAuthInitialized` selectors. Shows loading state while auth initializes. Redirects unauthenticated users to `/login` with the current location in state for post-login navigation.
 
-**Auth Slice** (`store/slices/authSlice.ts`): State: `user` (IUser | null), `token` (string | null), `initialized` (boolean). Actions: `setCredentials`, `setToken`, `logout`, `setAuthInitialized`. Both `setCredentials` and `logout` persist/clear token in localStorage. Selectors: `selectCurrentUser`, `selectIsAuthenticated`, `selectAuthInitialized`. Loads token from localStorage on init.
+**Auth Slice** (`store/slices/authSlice.ts`): State: `user` (IUser | null), `token` (string | null), `initialized` (boolean). Actions: `setCredentials`, `setToken`, `logout`, `setAuthInitialized`. Both `setCredentials` and `logout` persist/clear token in localStorage. Selectors: `selectCurrentUser`, `selectToken`, `selectIsAuthenticated`, `selectAuthInitialized`. Loads token from localStorage on init.
+
+**Auth Initializer** (`components/AuthInitializer.tsx`): Null-render component mounted at the root (inside `BrowserRouter`, outside the route tree). When a stored token exists but `currentUser` is null (e.g., after page refresh), it calls `useGetProfileQuery` and dispatches `setCredentials` to re-hydrate the user. Guards the dispatch with `currentUser === null` to prevent overwriting a user set by the login mutation. Dispatches `logout()` if the profile fetch returns an error (expired/invalid token). The store's `listenerMiddleware` clears the entire RTK Query cache (`baseApi.util.resetApiState()`) on every `logout` dispatch, preventing stale profile data from leaking across user sessions.
 
 ### State Management (Redux Toolkit + RTK Query)
 
@@ -106,6 +109,7 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 - `useCreateGameMutation()` — POST /games with `{ gameType: TGameType }` body → `IGameCreatedResponse`; invalidates `Games`
 - `useListGamesQuery()` — GET /games → `IGameSummaryDto[]`; provides per-item + LIST tags
 - `useGetGameQuery(gameId)` — GET /games/{id} → `IGameSummaryDto`; tag: `Games` by gameId; used with `pollingInterval` in `GameRoom`
+- `useGetGamePlayersQuery(gameId)` — GET /games/{id}/players → `IGamePlayerDto[]`; fetched when game is `Ready` to populate seat name labels
 - `useJoinGameMutation(gameId)` — GET /games/{id}/join → `IGameDetailsDto`; invalidates `Games`, `GameHand`
 - `useGetGameHandQuery(gameId)` — GET /games/{id}/hand → `IGameHandDto`; tag: `GameHand` by gameId
 - `useDeleteGameMutation(gameId)` — DELETE /games/{id}; invalidates `Games`
@@ -120,7 +124,7 @@ Uses a 40-card Napoletane deck. Card data types in `src/dtos/Card.ts` (`ICard` i
 
 ### GameRoom Page
 
-`src/pages/GameRoom/index.tsx` handles the `/game/:id` route. It uses `useGetGameQuery` with a dynamic `pollingInterval` (3000ms when status is `Created`, 0 otherwise) driven by a `useState` + `useEffect` pattern. When the game transitions to `Ready`, `useGetGameHandQuery` is automatically triggered and the player's real dealt cards are passed to `<Playroom cards={playerCards} />`. The inline `WaitingRoom` sub-component shows a progress spinner, a row of 4 seat indicators (filled green for joined players), and the current player count.
+`src/pages/GameRoom/index.tsx` handles the `/game/:id` route. It uses `useGetGameQuery` with a dynamic `pollingInterval` (3000ms when status is `Created`, 0 otherwise) driven by a `useState` + `useEffect` pattern. When the game transitions to `Ready`, `useGetGameHandQuery` and `useGetGamePlayersQuery` fire automatically. Player names are assigned to seats clockwise by join order (current user always at bottom, then right → top → left) and passed as `playerNames` to `<Playroom>` → `<CardsField>`, which renders a small name label next to each seat. The inline `WaitingRoom` sub-component shows a progress spinner, a row of 4 seat indicators (filled green for joined players), and the current player count.
 
 ### Page Components
 

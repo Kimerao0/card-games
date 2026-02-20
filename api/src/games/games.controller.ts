@@ -5,6 +5,7 @@ import { type AuthUser } from 'src/auth/auth-user.interface';
 import { GameSummaryDto } from 'src/games/dtos/game-summary.dto';
 import { GameDetailsDto } from 'src/games/dtos/game-details.dto';
 import { GameHandDto } from 'src/games/dtos/game-hand.dto';
+import { GamePlayerDto } from 'src/games/dtos/game-player.dto';
 import { CreateGameDto } from 'src/games/dtos/create-game.dto';
 
 @Controller('games')
@@ -40,5 +41,10 @@ export class GamesController {
   @Get(':id')
   public async getGame(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameSummaryDto> {
     return this.gamesService.getGame(gameId, user.sub);
+  }
+
+  @Get(':id/players')
+  public async getPlayers(@Param('id') gameId: string): Promise<GamePlayerDto[]> {
+    return this.gamesService.getPlayers(gameId);
   }
 }

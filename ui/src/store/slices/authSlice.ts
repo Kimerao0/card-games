@@ -43,10 +43,11 @@ export const authSlice = createSlice({
   },
   selectors: {
     selectCurrentUser: (state): IUser | null => state.user,
+    selectToken: (state): string | null => state.token,
     selectIsAuthenticated: (state): boolean => Boolean(state.token),
     selectAuthInitialized: (state): boolean => state.initialized,
   },
 });
 
 export const { setCredentials, setToken, logout, setAuthInitialized } = authSlice.actions;
-export const { selectCurrentUser, selectIsAuthenticated, selectAuthInitialized } = authSlice.selectors;
+export const { selectCurrentUser, selectToken, selectIsAuthenticated, selectAuthInitialized } = authSlice.selectors;

@@ -14,6 +14,7 @@ export const authApi = baseApi.injectEndpoints({
         const { data } = await queryFulfilled;
         dispatch(setCredentials({ user: data.user, token: data.accessToken }));
       },
+      invalidatesTags: ['Games', 'GameHand'],
     }),
     register: builder.mutation<IAuthResponse, IRegisterRequest>({
       query: (credentials) => ({
