@@ -7,6 +7,8 @@ import { GameDetailsDto } from 'src/games/dtos/game-details.dto';
 import { GameHandDto } from 'src/games/dtos/game-hand.dto';
 import { GamePlayerDto } from 'src/games/dtos/game-player.dto';
 import { CreateGameDto } from 'src/games/dtos/create-game.dto';
+import { PlayCardDto } from 'src/games/dtos/play-card.dto';
+import { GameStateDto } from 'src/games/dtos/game-state.dto';
 
 @Controller('games')
 export class GamesController {
@@ -20,6 +22,17 @@ export class GamesController {
   @Get(':id/join')
   public async joinGame(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameDetailsDto> {
     return this.gamesService.joinGame(gameId, user.sub);
+  }
+
+  @Post(':id/play')
+  public async playCard(@Param('id') gameId: string, @Body() dto: PlayCardDto, @CurrentUser() user: AuthUser): Promise<void> {
+    await this.gamesService.playCard(gameId, user.sub, dto.cardId);
+  }
+
+  // NEW: game state for polling clients
+  @Get(':id/state')
+  public async getState(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameStateDto> {
+    return this.gamesService.getGameState(gameId, user.sub);
   }
 
   @Delete(':id')

@@ -1,8 +1,7 @@
-import { CreateDateColumn, Entity, ManyToMany, ManyToOne, PrimaryGeneratedColumn, JoinTable, UpdateDateColumn, Column } from 'typeorm';
+import { CreateDateColumn, Entity, ManyToMany, ManyToOne, PrimaryGeneratedColumn, JoinTable, UpdateDateColumn, Column, OneToMany } from 'typeorm';
 import { User } from 'src/users/user.entity';
 import { GameStatus } from 'src/games/game-status.enum';
 import { GameType } from 'src/games/game-type.enum';
-import { OneToMany } from 'typeorm';
 import { GameParticipant } from './game-player.entity';
 
 @Entity('games')
@@ -36,6 +35,24 @@ export class Game {
 
   @Column({ type: 'enum', enum: GameType })
   gameType: GameType;
+
+  @Column({ type: 'int', nullable: true })
+  startingPlayerIndex!: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  currentPlayerIndex!: number | null;
+
+  @Column({ type: 'int', array: true, nullable: true })
+  trickCardIds!: number[] | null;
+
+  @Column({ type: 'uuid', array: true, nullable: true })
+  trickPlayerIds!: string[] | null;
+
+  @Column({ type: 'int', array: true, nullable: true })
+  tableCardIds!: number[] | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  capturedCardIdsByUser!: Record<string, number[]> | null;
 
   @OneToMany(() => GameParticipant, (gp) => gp.game, { cascade: true })
   public gamePlayers: GameParticipant[];

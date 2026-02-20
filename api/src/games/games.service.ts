@@ -15,6 +15,7 @@ import { UsersService } from 'src/users/users.service';
 import { Game } from './game.entity';
 import { GameParticipant } from 'src/games/game-player.entity';
 import { GameHandDto } from 'src/games/dtos/game-hand.dto';
+import { GameStateDto } from 'src/games/dtos/game-state.dto';
 
 const MAX_PLAYERS: number = 4;
 const HAND_SIZE: number = 10;
@@ -59,7 +60,6 @@ export class GamesService {
       const participantRepository: Repository<GameParticipant> = manager.getRepository(GameParticipant);
       const userRepository: Repository<User> = manager.getRepository(User);
 
-      // 1) Lock ONLY the Game row (no relations) to avoid Postgres FOR UPDATE + LEFT JOIN error
       const lockedGame: Game | null = await gameRepository.findOne({
         where: { id: gameId },
         lock: { mode: 'pessimistic_write' },
@@ -69,10 +69,7 @@ export class GamesService {
         throw new NotFoundException('Game not found');
       }
 
-      const user: User | null = await userRepository.findOne({
-        where: { id: userId },
-      });
-
+      const user: User | null = await userRepository.findOne({ where: { id: userId } });
       if (user === null) {
         throw new NotFoundException('User not found');
       }
@@ -106,32 +103,32 @@ export class GamesService {
         await participantRepository.save(newParticipant);
       }
 
-      // Reload participants after insert (still inside the transaction)
       const updatedParticipants: GameParticipant[] = await participantRepository.find({
         where: { gameId },
-        order: { createdAt: 'ASC' }, // deterministic dealing order
+        order: { createdAt: 'ASC' },
       });
 
-      // If we reached 4 participants, shuffle + deal once
       const shouldDeal: boolean = updatedParticipants.length === MAX_PLAYERS && lockedGame.status === GameStatus.Created;
 
       if (shouldDeal) {
-        const shuffledDeck = shuffle(ALL_CARDS);
-        const cardIds: number[] = shuffledDeck.map((c) => c.id);
-
-        const expectedTotalCards: number = MAX_PLAYERS * HAND_SIZE;
-        if (cardIds.length !== expectedTotalCards) {
-          throw new ConflictException('Invalid deck size');
-        }
+        const deal = this.dealForGameType(lockedGame.gameType);
 
         for (let i = 0; i < MAX_PLAYERS; i += 1) {
-          const sliceStart: number = i * HAND_SIZE;
-          const sliceEnd: number = sliceStart + HAND_SIZE;
-
-          updatedParticipants[i].handCardIds = cardIds.slice(sliceStart, sliceEnd);
+          updatedParticipants[i].handCardIds = deal.hands[i];
         }
-
         await participantRepository.save(updatedParticipants);
+
+        const startingIndex: number = this.pickRandomStartingIndex(MAX_PLAYERS);
+
+        lockedGame.startingPlayerIndex = startingIndex;
+        lockedGame.currentPlayerIndex = startingIndex;
+
+        lockedGame.trickCardIds = [];
+        lockedGame.trickPlayerIds = [];
+
+        lockedGame.tableCardIds = deal.tableCardIds;
+
+        lockedGame.capturedCardIdsByUser = this.initCapturedByUser(updatedParticipants);
 
         lockedGame.status = GameStatus.Ready;
         await gameRepository.save(lockedGame);
@@ -161,6 +158,29 @@ export class GamesService {
         maxPlayers: MAX_PLAYERS,
       };
     });
+  }
+
+  private pickRandomStartingIndex(maxPlayers: number): number {
+    return Math.floor(Math.random() * maxPlayers);
+  }
+
+  private dealHands(): number[][] {
+    const shuffledDeck = shuffle(ALL_CARDS);
+    const cardIds: number[] = shuffledDeck.map((c) => c.id);
+
+    const expectedTotalCards: number = MAX_PLAYERS * HAND_SIZE;
+    if (cardIds.length !== expectedTotalCards) {
+      throw new ConflictException('Invalid deck size');
+    }
+
+    const hands: number[][] = [];
+    for (let i = 0; i < MAX_PLAYERS; i += 1) {
+      const sliceStart: number = i * HAND_SIZE;
+      const sliceEnd: number = sliceStart + HAND_SIZE;
+      hands.push(cardIds.slice(sliceStart, sliceEnd));
+    }
+
+    return hands;
   }
 
   public async deleteGame(gameId: string, userId: string): Promise<void> {
@@ -266,6 +286,41 @@ export class GamesService {
     };
   }
 
+  private initCapturedByUser(participants: GameParticipant[]): Record<string, number[]> {
+    const captured: Record<string, number[]> = {};
+    for (const p of participants) {
+      captured[p.userId] = [];
+    }
+    return captured;
+  }
+
+  private dealForGameType(gameType: GameType): { hands: number[][]; tableCardIds: number[] } {
+    // Scopone scientifico: 9 a testa + 4 sul tavolo
+    // Tressette: 10 a testa + 0 sul tavolo
+    const handSize: number = gameType === GameType.ScoponeScientifico ? 9 : 10;
+    const tableSize: number = gameType === GameType.ScoponeScientifico ? 4 : 0;
+
+    const shuffledDeck = shuffle(ALL_CARDS);
+    const cardIds: number[] = shuffledDeck.map((c) => c.id);
+
+    const expectedTotalCards: number = MAX_PLAYERS * handSize + tableSize;
+    if (cardIds.length !== expectedTotalCards) {
+      throw new ConflictException('Invalid deck size for game type');
+    }
+
+    const hands: number[][] = [];
+    let cursor = 0;
+
+    for (let i = 0; i < MAX_PLAYERS; i += 1) {
+      hands.push(cardIds.slice(cursor, cursor + handSize));
+      cursor += handSize;
+    }
+
+    const tableCardIds: number[] = cardIds.slice(cursor, cursor + tableSize);
+
+    return { hands, tableCardIds };
+  }
+
   public async getPlayers(gameId: string): Promise<GamePlayerDto[]> {
     const game: Game | null = await this.gamesRepository.findOne({ where: { id: gameId } });
     if (game === null) {
@@ -277,10 +332,12 @@ export class GamesService {
       order: { createdAt: 'ASC' },
     });
 
-    return participants.map((p): GamePlayerDto => ({
-      userId: p.userId,
-      name: p.user.name,
-    }));
+    return participants.map(
+      (p): GamePlayerDto => ({
+        userId: p.userId,
+        name: p.user.name,
+      }),
+    );
   }
 
   public async getHand(gameId: string, userId: string): Promise<GameHandDto> {
@@ -303,6 +360,206 @@ export class GamesService {
       gameId: participant.gameId,
       userId: participant.userId,
       handCardIds,
+    };
+  }
+
+  public async playCard(gameId: string, userId: string, cardId: number): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const gameRepository: Repository<Game> = manager.getRepository(Game);
+      const participantRepository: Repository<GameParticipant> = manager.getRepository(GameParticipant);
+
+      // Lock game row
+      const lockedGame: Game | null = await gameRepository.findOne({
+        where: { id: gameId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (lockedGame === null) {
+        throw new NotFoundException('Game not found');
+      }
+
+      if (lockedGame.status !== GameStatus.Ready) {
+        throw new ConflictException('Game is not ready');
+      }
+
+      if (lockedGame.currentPlayerIndex === null || lockedGame.startingPlayerIndex === null) {
+        throw new ConflictException('Turn state not initialized');
+      }
+
+      const participants: GameParticipant[] = await participantRepository.find({
+        where: { gameId },
+        order: { createdAt: 'ASC' },
+      });
+
+      if (participants.length !== MAX_PLAYERS) {
+        throw new ConflictException('Game does not have 4 players');
+      }
+
+      const currentPlayer: GameParticipant = participants[lockedGame.currentPlayerIndex];
+
+      if (currentPlayer.userId !== userId) {
+        throw new ConflictException('Not your turn');
+      }
+
+      if (currentPlayer.handCardIds === null) {
+        throw new ConflictException('Hand not initialized');
+      }
+
+      if (!currentPlayer.handCardIds.includes(cardId)) {
+        throw new ConflictException('Card not in hand');
+      }
+
+      // Remove from hand (always)
+      currentPlayer.handCardIds = currentPlayer.handCardIds.filter((id) => id !== cardId);
+
+      // Ensure arrays/maps are initialized
+      if (lockedGame.trickCardIds === null) lockedGame.trickCardIds = [];
+      if (lockedGame.trickPlayerIds === null) lockedGame.trickPlayerIds = [];
+
+      if (lockedGame.tableCardIds === null) lockedGame.tableCardIds = [];
+      if (lockedGame.capturedCardIdsByUser === null) {
+        // fallback safe init (should be already set in joinGame)
+        lockedGame.capturedCardIdsByUser = {};
+        for (const p of participants) lockedGame.capturedCardIdsByUser[p.userId] = [];
+      }
+      if (lockedGame.capturedCardIdsByUser[userId] === undefined) {
+        lockedGame.capturedCardIdsByUser[userId] = [];
+      }
+
+      // Log play (useful for UI/history; for Scopone not used for scoring directly)
+      lockedGame.trickCardIds.push(cardId);
+      lockedGame.trickPlayerIds.push(userId);
+
+      // --- Game-specific resolution ---
+      if (lockedGame.gameType === GameType.ScoponeScientifico) {
+        const tableIds: number[] = lockedGame.tableCardIds;
+        const playedValue: number = this.getCardValue(cardId);
+
+        const capture = this.findScoponeCapture(tableIds, playedValue);
+
+        if (capture.length > 0) {
+          // Capture: remove captured cards from table, add captured + played to user's captured pile
+          lockedGame.tableCardIds = tableIds.filter((id) => !capture.includes(id));
+          lockedGame.capturedCardIdsByUser[userId].push(cardId, ...capture);
+        } else {
+          // No capture: card goes to table
+          lockedGame.tableCardIds.push(cardId);
+        }
+      } else {
+        // Tressette (placeholder for now): no table/capture logic here
+        // We'll do trick resolution in a later step specific to Tressette.
+      }
+
+      await participantRepository.save(currentPlayer);
+
+      // Advance turn round-robin
+      lockedGame.currentPlayerIndex = (lockedGame.currentPlayerIndex + 1) % MAX_PLAYERS;
+
+      await gameRepository.save(lockedGame);
+    });
+  }
+
+  private getCardValue(cardId: number): number {
+    const card = ALL_CARDS.find((c) => c.id === cardId);
+    if (!card) {
+      throw new ConflictException('Unknown card id');
+    }
+
+    // Assunzione: c.value o c.rank è già 1..10 (asso=1)
+    // Se nel tuo modello si chiama diversamente, cambia QUI soltanto.
+    const value = (card as any).value ?? (card as any).rank;
+
+    if (typeof value !== 'number' || value < 1 || value > 10) {
+      throw new ConflictException('Invalid card value');
+    }
+
+    return value;
+  }
+
+  private findScoponeCapture(tableCardIds: number[], playedValue: number): number[] {
+    if (tableCardIds.length === 0) return [];
+
+    // 1) Precedenza: carta esatta per valore
+    for (const id of tableCardIds) {
+      if (this.getCardValue(id) === playedValue) {
+        return [id];
+      }
+    }
+
+    // 2) Altrimenti: combinazioni che sommano al valore giocato
+    // Generiamo tutte le combinazioni e scegliamo:
+    // - prima: quella con meno carte
+    // - poi: tie-break deterministico (somma id, poi lessicografico)
+    const values = tableCardIds.map((id) => ({ id, v: this.getCardValue(id) }));
+
+    const combos: number[][] = [];
+    const n = values.length;
+
+    const dfs = (start: number, remaining: number, acc: number[]) => {
+      if (remaining === 0) {
+        combos.push([...acc]);
+        return;
+      }
+      if (remaining < 0) return;
+
+      for (let i = start; i < n; i += 1) {
+        const { id, v } = values[i];
+        acc.push(id);
+        dfs(i + 1, remaining - v, acc);
+        acc.pop();
+      }
+    };
+
+    dfs(0, playedValue, []);
+
+    if (combos.length === 0) return [];
+
+    combos.sort((a, b) => {
+      // fewer cards first
+      if (a.length !== b.length) return a.length - b.length;
+
+      // tie-break 1: sum of ids
+      const sa = a.reduce((s, x) => s + x, 0);
+      const sb = b.reduce((s, x) => s + x, 0);
+      if (sa !== sb) return sa - sb;
+
+      // tie-break 2: lexicographic
+      const aa = [...a].sort((x, y) => x - y);
+      const bb = [...b].sort((x, y) => x - y);
+      for (let i = 0; i < Math.min(aa.length, bb.length); i += 1) {
+        if (aa[i] !== bb[i]) return aa[i] - bb[i];
+      }
+      return 0;
+    });
+
+    return combos[0];
+  }
+
+  public async getGameState(gameId: string, userId: string): Promise<GameStateDto> {
+    const gameRepository: Repository<Game> = this.dataSource.getRepository(Game);
+    const participantRepository: Repository<GameParticipant> = this.dataSource.getRepository(GameParticipant);
+
+    const game: Game | null = await gameRepository.findOne({ where: { id: gameId } });
+    if (game === null) {
+      throw new NotFoundException('Game not found');
+    }
+
+    // Optional: ensure caller is a participant
+    const isParticipant = (await participantRepository.count({ where: { gameId, userId } })) > 0;
+    if (!isParticipant) {
+      throw new ForbiddenException('Not a participant');
+    }
+
+    return {
+      id: game.id,
+      status: game.status,
+      gameType: game.gameType,
+      startingPlayerIndex: game.startingPlayerIndex ?? null,
+      currentPlayerIndex: game.currentPlayerIndex ?? null,
+      tableCardIds: game.tableCardIds ?? [],
+      trickCardIds: game.trickCardIds ?? [],
+      trickPlayerIds: game.trickPlayerIds ?? [],
+      capturedCardIdsByUser: game.capturedCardIdsByUser ?? {},
     };
   }
 }
