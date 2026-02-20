@@ -104,6 +104,8 @@ export const Login: FC = () => {
       await login({ email: loginEmail.trim(), password: loginPassword }).unwrap();
       // Navigate to the originally requested page (safe internal path)
       navigate(from, { replace: true });
+      // Refreshing the page after login can help ensure all auth-dependent data is up-to-date, but it's optional.
+      window.location.reload();
     } catch {
       // handled via loginError
     }
@@ -160,11 +162,7 @@ export const Login: FC = () => {
 
         <LoginCard elevation={12}>
           <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-            <Tabs
-              value={activeTab}
-              onChange={handleTabChange}
-              TabIndicatorProps={{ style: { backgroundColor: '#2e7d32' } }}
-            >
+            <Tabs value={activeTab} onChange={handleTabChange} TabIndicatorProps={{ style: { backgroundColor: '#2e7d32' } }}>
               <Tab label="Accedi" sx={{ fontWeight: 600, '&.Mui-selected': { color: '#2e7d32' } }} />
               <Tab label="Registrati" sx={{ fontWeight: 600, '&.Mui-selected': { color: '#2e7d32' } }} />
             </Tabs>
@@ -181,7 +179,15 @@ export const Login: FC = () => {
             >
               {loginError && <Alert severity="error">{extractErrorMessage(loginError)}</Alert>}
 
-              <TextField label="Email" type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required autoComplete="email" fullWidth />
+              <TextField
+                label="Email"
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                required
+                autoComplete="email"
+                fullWidth
+              />
               <TextField
                 label="Password"
                 type="password"
@@ -218,7 +224,15 @@ export const Login: FC = () => {
                 autoComplete="email"
                 fullWidth
               />
-              <TextField label="Nome" type="text" value={registerName} onChange={(e) => setRegisterName(e.target.value)} required autoComplete="name" fullWidth />
+              <TextField
+                label="Nome"
+                type="text"
+                value={registerName}
+                onChange={(e) => setRegisterName(e.target.value)}
+                required
+                autoComplete="name"
+                fullWidth
+              />
               <TextField
                 label="Password"
                 type="password"
