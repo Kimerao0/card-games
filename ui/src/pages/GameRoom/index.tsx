@@ -51,15 +51,17 @@ export const GameRoom: FC = () => {
 
   const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId!, { pollingInterval });
   const isReady = game?.status === 'Ready';
+  const isScoring = game?.status === 'Scoring';
+  const isGameActive = isReady || isScoring;
 
   const { data: handDto, isLoading: isLoadingHand } = useGetGameHandQuery(gameId!, {
     skip: !isReady || !game?.isUserInGame,
   });
 
-  const { data: players } = useGetGamePlayersQuery(gameId!, { skip: !isReady });
+  const { data: players } = useGetGamePlayersQuery(gameId!, { skip: !isGameActive });
 
   const { data: gameState } = useGetGameStateQuery(gameId!, {
-    skip: !isReady || !game?.isUserInGame,
+    skip: !isGameActive || !game?.isUserInGame,
     pollingInterval: statePollingInterval,
   });
 
@@ -72,6 +74,9 @@ export const GameRoom: FC = () => {
     } else if (game?.status === 'Ready') {
       setPollingInterval(0);
       setStatePollingInterval(5000);
+    } else if (game?.status === 'Scoring') {
+      setPollingInterval(0);
+      setStatePollingInterval(0);
     } else {
       setPollingInterval(0);
       setStatePollingInterval(0);
@@ -204,6 +209,31 @@ export const GameRoom: FC = () => {
     return <WaitingRoom playersCount={game.playersCount} maxPlayers={game.maxPlayers} gameId={game.id} />;
   }
 
+  if (isScoring) {
+    if (gameState?.scoreResult && players) {
+      return (
+        <>
+          <Playroom
+            cards={[]}
+            playerNames={playerNames}
+            tableCards={tableCards}
+            isMyTurn={false}
+            capturedMine={capturedCounts.mine}
+            capturedPartner={capturedCounts.partner}
+            currentTurnSeat={undefined}
+          />
+          <ScoreOverlay scoreResult={gameState.scoreResult} players={players} />
+        </>
+      );
+    }
+    return (
+      <CenteredWrapper>
+        <CircularProgress sx={{ color: '#4caf50', mb: 2 }} />
+        <Typography sx={{ color: '#fff' }}>Calcolo punteggio...</Typography>
+      </CenteredWrapper>
+    );
+  }
+
   if (game.status === 'Ready') {
     if (isLoadingHand) {
       return (
@@ -243,12 +273,32 @@ export const GameRoom: FC = () => {
               </Typography>
             </ScopaNotificationOverlay>
           )}
-          {gameState?.scoreResult !== null && gameState?.scoreResult !== undefined && players && (
-            <ScoreOverlay scoreResult={gameState.scoreResult} players={players} />
-          )}
         </>
       );
     }
+
+    // Hands empty — endgame imminent; show score if available, else loading
+    if (gameState?.scoreResult && players) {
+      return (
+        <>
+          <Playroom
+            cards={[]}
+            playerNames={playerNames}
+            tableCards={tableCards}
+            isMyTurn={false}
+            capturedMine={capturedCounts.mine}
+            capturedPartner={capturedCounts.partner}
+          />
+          <ScoreOverlay scoreResult={gameState.scoreResult} players={players} />
+        </>
+      );
+    }
+    return (
+      <CenteredWrapper>
+        <CircularProgress sx={{ color: '#4caf50', mb: 2 }} />
+        <Typography sx={{ color: '#fff' }}>Calcolo punteggio...</Typography>
+      </CenteredWrapper>
+    );
   }
 
   return (
