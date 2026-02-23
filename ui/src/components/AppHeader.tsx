@@ -4,7 +4,7 @@ import { AppBar, IconButton, Toolbar, Tooltip, Typography } from '@mui/material'
 import { AccountCircle } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout, selectCurrentUser, selectIsAuthenticated } from '@/store/slices/authSlice';
-import { Row } from '@/pages/Playroom/CardsField';
+import { Row } from '@/components/layout';
 
 export const AppHeader: FC = () => {
   const navigate = useNavigate();

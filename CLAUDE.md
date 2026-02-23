@@ -122,6 +122,42 @@ Frontend React 19 + TypeScript + Vite.
 
 **Page components** are organized as `ui/src/pages/<PageName>/index.tsx`.
 
+## React Development Guidelines
+
+### Component Organization
+
+- **Entry point size:** `index.tsx` for a page or feature should stay ≤ 100 lines. Extract sub-components when it grows beyond that.
+- **Page-exclusive components:** components used only within one page live in `pages/<PageName>/components/`. Do not import them from sibling pages.
+- **Shared components:** components used across multiple pages live in `components/`. Generic layout primitives (`Row`, `Column`) belong in `components/layout/`.
+- **No cross-page imports:** `components/` must never import from `pages/`. Run `grep -r "from.*pages/" ui/src/components/` to verify.
+
+### Custom Hook Conventions
+
+- Co-locate hooks with their primary consumer (e.g., `useGameRoomState.ts` lives in `pages/GameRoom/components/`).
+- Name hooks `use<Feature>.ts` with no JSX in the file.
+- Return a single typed object (named interface) rather than a positional tuple when returning more than two values.
+
+### Single Responsibility
+
+- One concern per file. A component should either manage state/logic or render UI — not both at scale.
+- Inline sub-components that exceed ~20 lines of JSX should be extracted to a named component in the same `components/` subfolder.
+- Inline styled components are fine; once a styled component is reused across files, move it to a shared location.
+
+### Duplication Threshold
+
+- When two or more pages share ~30%+ of their JSX or logic, extract a generic component that accepts a config/props object. See `GameLobbyPage` as the reference pattern.
+
+### Emotion Styled Component Conventions
+
+- Use `$` prefix for transient props (props that should not be forwarded to the DOM), e.g., `$active`, `$filled`, `$myTurn`.
+- Generic layout primitives (`Row` and `Column` flex containers) are defined once in `components/layout/index.ts` and imported everywhere.
+
+### State Management Boundaries
+
+- **Local UI state** (`useState`): ephemeral UI state scoped to one component (open/close, animation flags, form fields).
+- **Server state** (RTK Query): all remote data fetched from the API; keep polling logic inside custom hooks.
+- **Global client state** (Redux slices): cross-component state that outlives a single page (auth, user identity).
+
 ## Code Style
 
 - UI text is in Italian
