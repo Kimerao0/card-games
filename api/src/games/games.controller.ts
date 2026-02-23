@@ -12,7 +12,7 @@ import { GameStateDto } from 'src/games/dtos/game-state.dto';
 
 @Controller('games')
 export class GamesController {
-  constructor(private readonly gamesService: GamesService) {}
+  public constructor(private readonly gamesService: GamesService) {}
 
   @Post()
   public create(@Body() dto: CreateGameDto, @CurrentUser() user: AuthUser): Promise<unknown> {

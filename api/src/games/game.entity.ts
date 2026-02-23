@@ -1,4 +1,4 @@
-import { CreateDateColumn, Entity, ManyToMany, ManyToOne, PrimaryGeneratedColumn, JoinTable, UpdateDateColumn, Column, OneToMany } from 'typeorm';
+import { Column, CreateDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { User } from 'src/users/user.entity';
 import { GameStatus } from 'src/games/game-status.enum';
 import { GameType } from 'src/games/game-type.enum';
@@ -12,14 +12,6 @@ export class Game {
 
   @ManyToOne(() => User, { nullable: false })
   createdBy!: User;
-
-  @ManyToMany(() => User)
-  @JoinTable({
-    name: 'game_players',
-    joinColumn: { name: 'game_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' },
-  })
-  players!: User[];
 
   @CreateDateColumn()
   createdAt!: Date;
