@@ -10,7 +10,22 @@ import { ScopaNotification } from './components/ScopaNotification';
 export const GameRoom: FC = () => {
   const { id: gameId } = useParams<{ id: string }>();
   const state = useGameRoomState(gameId!);
-  const { game, isLoadingGame, isError, isLoadingHand, players, gameState, playerCards, playerNames, isMyTurn, currentTurnSeat, tableCards, capturedCounts, scoreResult, scopaNotification, handlePlay } = state;
+  const {
+    game,
+    isLoadingGame,
+    isError,
+    isLoadingHand,
+    players,
+    playerCards,
+    playerNames,
+    isMyTurn,
+    currentTurnSeat,
+    tableCards,
+    capturedCounts,
+    scoreResult,
+    scopaNotification,
+    handlePlay,
+  } = state;
 
   if (isLoadingGame && !game) {
     return (
@@ -41,7 +56,15 @@ export const GameRoom: FC = () => {
     if (scoreResult && players) {
       return (
         <>
-          <Playroom cards={[]} playerNames={playerNames} tableCards={tableCards} isMyTurn={false} capturedMine={capturedCounts.mine} capturedPartner={capturedCounts.partner} currentTurnSeat={undefined} />
+          <Playroom
+            cards={[]}
+            playerNames={playerNames}
+            tableCards={tableCards}
+            isMyTurn={false}
+            capturedMine={capturedCounts.mine}
+            capturedPartner={capturedCounts.partner}
+            currentTurnSeat={undefined}
+          />
           <ScoreOverlay scoreResult={scoreResult} players={players} />
         </>
       );
@@ -73,7 +96,16 @@ export const GameRoom: FC = () => {
     if (playerCards.length > 0) {
       return (
         <>
-          <Playroom cards={playerCards} playerNames={playerNames} tableCards={tableCards} isMyTurn={isMyTurn} onPlayCard={handlePlay} capturedMine={capturedCounts.mine} capturedPartner={capturedCounts.partner} currentTurnSeat={currentTurnSeat} />
+          <Playroom
+            cards={playerCards}
+            playerNames={playerNames}
+            tableCards={tableCards}
+            isMyTurn={isMyTurn}
+            onPlayCard={handlePlay}
+            capturedMine={capturedCounts.mine}
+            capturedPartner={capturedCounts.partner}
+            currentTurnSeat={currentTurnSeat}
+          />
           {scopaNotification !== null && <ScopaNotification playerName={scopaNotification} />}
         </>
       );
@@ -83,7 +115,14 @@ export const GameRoom: FC = () => {
     if (scoreResult && players) {
       return (
         <>
-          <Playroom cards={[]} playerNames={playerNames} tableCards={tableCards} isMyTurn={false} capturedMine={capturedCounts.mine} capturedPartner={capturedCounts.partner} />
+          <Playroom
+            cards={[]}
+            playerNames={playerNames}
+            tableCards={tableCards}
+            isMyTurn={false}
+            capturedMine={capturedCounts.mine}
+            capturedPartner={capturedCounts.partner}
+          />
           <ScoreOverlay scoreResult={scoreResult} players={players} />
         </>
       );
