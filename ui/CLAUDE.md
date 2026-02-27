@@ -86,11 +86,11 @@ src/
 │   │   ├── usersApi.ts               # getProfile query (tag: UserProfile)
 │   │   └── gamesApi.ts              # createGame, listGames, getGame, getGamePlayers, joinGame, getGameHand, deleteGame
 │   └── slices/
-│       └── authSlice.ts              # Auth state: user, token, initialized; persists token in localStorage. Selectors: selectCurrentUser, selectToken, selectIsAuthenticated, selectAuthInitialized
+│       └── authSlice.ts              # Auth state: user, token, initialized; persists token in sessionStorage. Selectors: selectCurrentUser, selectToken, selectIsAuthenticated, selectAuthInitialized
 ├── theme/
 │   └── index.ts                      # MUI theme (light mode, primary #1976d2, secondary #9c27b0)
 └── utils/
-    └── tokenStorage.ts               # getStoredToken, setStoredToken, removeStoredToken (localStorage)
+    └── tokenStorage.ts               # getStoredToken, setStoredToken, removeStoredToken (sessionStorage)
 ```
 
 ### Routing & Layout
@@ -113,13 +113,13 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 
 **AuthGuard** (`components/AuthGuard.tsx`): Wraps protected routes. Checks `selectIsAuthenticated` and `selectAuthInitialized` selectors. Shows loading state while auth initializes. Redirects unauthenticated users to `/login` with the current location in state for post-login navigation.
 
-**Auth Slice** (`store/slices/authSlice.ts`): State: `user` (IUser | null), `token` (string | null), `initialized` (boolean). Actions: `setCredentials`, `setToken`, `logout`, `setAuthInitialized`. Both `setCredentials` and `logout` persist/clear token in localStorage. Selectors: `selectCurrentUser`, `selectToken`, `selectIsAuthenticated`, `selectAuthInitialized`. Loads token from localStorage on init.
+**Auth Slice** (`store/slices/authSlice.ts`): State: `user` (IUser | null), `token` (string | null), `initialized` (boolean). Actions: `setCredentials`, `setToken`, `logout`, `setAuthInitialized`. Both `setCredentials` and `logout` persist/clear token in sessionStorage. Selectors: `selectCurrentUser`, `selectToken`, `selectIsAuthenticated`, `selectAuthInitialized`. Loads token from sessionStorage on init.
 
 **Auth Initializer** (`components/AuthInitializer.tsx`): Null-render component mounted at the root (inside `BrowserRouter`, outside the route tree). When a stored token exists but `currentUser` is null (e.g., after page refresh), it calls `useGetProfileQuery` and dispatches `setCredentials` to re-hydrate the user. Guards the dispatch with `currentUser === null` to prevent overwriting a user set by the login mutation. Dispatches `logout()` if the profile fetch returns an error (expired/invalid token). The store's `listenerMiddleware` clears the entire RTK Query cache (`baseApi.util.resetApiState()`) on every `logout` dispatch, preventing stale profile data from leaking across user sessions.
 
 ### State Management (Redux Toolkit + RTK Query)
 
-**Base API** (`store/api/baseApi.ts`): Base URL `http://localhost:3000`. Prepares headers with Bearer token from localStorage. Tag types: `Games`, `GameHand`, `UserProfile`.
+**Base API** (`store/api/baseApi.ts`): Base URL `http://localhost:3000`. Prepares headers with Bearer token from sessionStorage. Tag types: `Games`, `GameHand`, `UserProfile`.
 
 **Auth API** (`store/api/authApi.ts`):
 - `useLoginMutation()` — POST /auth/login → `IAuthResponse`; auto-dispatches `setCredentials`

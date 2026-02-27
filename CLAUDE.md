@@ -29,13 +29,13 @@ Piattaforma per giochi di carte italiani (Scopone Scientifico, Tresette). Monore
 
 ### Backend — `api/`
 
-**Stack:** NestJS v11, TypeScript 5.7, Fastify, PostgreSQL (TypeORM), JWT auth (Passport), Jest.
+**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth (Passport), Jest.
 
-**Struttura:** Moduli NestJS con dependency injection. Entry point in `api/src/main.ts` (FastifyAdapter), ascolta su `0.0.0.0:3000`. CORS abilitato per `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`), `ClassSerializerInterceptor`, e `JwtAuthGuard` (tutte le rotte protette tranne `@Public()`).
+**Struttura:** Moduli NestJS con dependency injection. Entry point in `api/src/main.ts` (default Express adapter), ascolta su `0.0.0.0:3000`. CORS abilitato per `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`), `ClassSerializerInterceptor`, e `JwtAuthGuard` (tutte le rotte protette tranne `@Public()`).
 
 ```
 api/src/
-├── main.ts                        # Entry point (Fastify, CORS, ValidationPipe, ClassSerializerInterceptor)
+├── main.ts                        # Entry point (Express, CORS, ValidationPipe, ClassSerializerInterceptor)
 ├── app.module.ts                  # Root module (ConfigModule, TypeOrmModule, AuthModule, UsersModule, GamesModule, global JwtAuthGuard)
 ├── app.controller.ts              # GET / → "Hello World!"
 ├── app.service.ts

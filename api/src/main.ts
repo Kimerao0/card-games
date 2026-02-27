@@ -1,19 +1,17 @@
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
-
-  const fastify = app.getHttpAdapter().getInstance();
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Fix: VSCode REST Client a volte manda "content-type: undefined"
-  fastify.addHook('onRequest', (request: any, _reply: any, done: any) => {
-    if (request.headers['content-type'] === 'undefined') {
-      delete request.headers['content-type'];
+  app.use((req: any, _res: any, next: any) => {
+    if (req.headers['content-type'] === 'undefined') {
+      delete req.headers['content-type'];
     }
-    done();
+    next();
   });
 
   app.enableCors({

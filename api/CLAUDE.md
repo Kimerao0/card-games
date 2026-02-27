@@ -19,13 +19,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Backend for a platform for Italian card games (Scopone Scientifico, Tresette). Part of a monorepo — see the root `CLAUDE.md` for full project context including the frontend (`ui/`).
 
-**Stack:** NestJS v11, TypeScript 5.7, Fastify, PostgreSQL (TypeORM), JWT auth (Passport), Jest.
+**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth (Passport), Jest.
 
-**Structure:** NestJS modules with dependency injection. Entry point in `src/main.ts` (FastifyAdapter), listens on `0.0.0.0:3000`. CORS enabled for `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`) and `ClassSerializerInterceptor`. Global `JwtAuthGuard` (all routes protected unless marked `@Public()`).
+**Structure:** NestJS modules with dependency injection. Entry point in `src/main.ts` (default Express adapter), listens on `0.0.0.0:3000`. CORS enabled for `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`) and `ClassSerializerInterceptor`. Global `JwtAuthGuard` (all routes protected unless marked `@Public()`).
 
 ```
 src/
-├── main.ts                        # Entry point (Fastify, CORS, ValidationPipe, ClassSerializerInterceptor)
+├── main.ts                        # Entry point (Express, CORS, ValidationPipe, ClassSerializerInterceptor)
 ├── app.module.ts                  # Root module (ConfigModule, TypeOrmModule, AuthModule, UsersModule, GamesModule, global JwtAuthGuard)
 ├── app.controller.ts              # GET / → "Hello World!"
 ├── app.service.ts
