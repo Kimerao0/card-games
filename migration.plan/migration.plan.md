@@ -143,7 +143,7 @@ this.server.to(`game:${gameId}`).emit(...)
 
 ---
 
-### Step 3 — Attach IoAdapter (Express)
+### — Attach IoAdapter (Express)
 
 **File:** `api/src/main.ts`
 
@@ -157,7 +157,7 @@ Socket shares port 3000.
 
 ---
 
-### Step 4 — Update GamesService (Emit After Commit)
+### Step 3 — Update GamesService (Emit After Commit)
 
 **File:** `api/src/games/games.service.ts`
 
@@ -206,7 +206,7 @@ this.gateway.emitGameDeleted(gameId);
 
 ---
 
-### Step 5 — Install frontend socket client
+### Step 4 — Install frontend socket client
 
 **File:** `ui/package.json`
 
@@ -237,7 +237,7 @@ Guard against double-connect.
 
 ---
 
-### Step 6 — Create gameSocketSlice
+### Step 5 — Create gameSocketSlice
 
 **File:** `ui/src/store/slices/gameSocketSlice.ts`
 
@@ -262,7 +262,7 @@ Add reducer in `store/index.ts`.
 
 ---
 
-### Step 7 — Auth Integration + sessionStorage
+### Step 6 — Auth Integration + sessionStorage
 
 **Files:**
 
@@ -280,7 +280,7 @@ Token source: `sessionStorage`
 
 ---
 
-### Step 8 — Update GameRoom
+### Step 7 — Update GameRoom
 
 **Remove:**
 
@@ -306,7 +306,7 @@ Token source: `sessionStorage`
 
 ---
 
-### Step 9 — Remove getGameState endpoint
+### Step 8 — Remove getGameState endpoint
 
 **File:** `ui/src/store/api/gamesApi.ts`
 
