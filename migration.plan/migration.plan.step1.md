@@ -22,18 +22,6 @@ Da root:
 cd api
 ```
 
-Controllo rapido (opzionale ma utile):
-
-- che `yarn` funzioni
-- che il progetto compili già prima di toccare nulla
-
-```bash
-yarn -v
-yarn build
-```
-
-> Se `yarn build` fallisce già qui, conviene sistemare prima (evita di mischiare errori pre-esistenti con dipendenze nuove).
-
 ---
 
 ## 1.2 — Installa le dipendenze
@@ -111,7 +99,7 @@ Questo step è utile per ridurre "sorprese" nello step 2 (quando scriverete il G
 Aggiungi temporaneamente (solo per verificare compilation) un import in un file qualsiasi del backend, tipo in `src/app.module.ts`:
 
 ```ts
-import { WebSocketGateway } from '@nestjs/websockets';
+import { WebSocketGateway } from "@nestjs/websockets";
 ```
 
 Poi ricompila (`yarn build`). Se compila, significa che risoluzione moduli e types sono ok.
