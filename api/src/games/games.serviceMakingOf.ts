@@ -30,7 +30,6 @@ export class GamesService {
     private readonly dataSource: DataSource,
     private readonly scoponeRules: ScoponeRulesService,
     private readonly gameDealing: GameDealingService,
-    private readonly gameGateway: GameGateway, // ✅ NEW: iniezione del gateway per broadcast socket.io
     /**
      * Perché serve:
      * - Ora che abbiamo WS, il service (che già orchestrava la logica) deve “pushare” eventi ai client.
@@ -38,6 +37,7 @@ export class GamesService {
      * Perché prima non serviva:
      * - Prima nessun push server→client: i client vedevano i cambiamenti solo col polling HTTP.
      */
+    // TODO: iniezione del gateway per broadcast socket.io
   ) {}
 
   public async createGame(creatorId: string, gameType: GameType): Promise<Game> {
@@ -73,6 +73,7 @@ export class GamesService {
     // - gli eventi WS devono rappresentare stato “committato”, non uno stato intermedio.
     // Perché prima non serviva:
     // - prima il client avrebbe scoperto i cambiamenti col polling, quindi non c’era emissione.
+
     const { detailsDto, didStart, stateDtoIfStarted } = await this.dataSource.transaction(async (manager) => {
       const gameRepository: Repository<Game> = manager.getRepository(Game);
       const participantRepository: Repository<GameParticipant> = manager.getRepository(GameParticipant);
@@ -188,37 +189,30 @@ export class GamesService {
       //
       // Perché prima non serviva:
       // - Il client avrebbe visto status Ready e tavolo/counters solo alla prossima poll.
-      const didStartNow: boolean = shouldDeal;
 
       // Se la partita è appena diventata Ready, prepariamo uno state DTO “snapshot” post-deal
       // (normalizzando i null). È utile per:
       // - client già connessi che vogliono aggiornare UI subito
       // - ridurre race: tutti ricevono lo stesso stato base “di avvio”
-      const stateDto: GameStateDto | null = didStartNow ? this.buildGameStateDto(lockedGame) : null;
 
-      return {
-        detailsDto: details,
-        didStart: didStartNow,
-        stateDtoIfStarted: stateDto,
-      };
+      // TODO creiamo la variabile stateDto: GameStateDto | null : se shshouldDeal è true costruiamo
+      // lo state per mezzo di buildGameStateDto, altrimenti ritorniamo null
+
+      // TODO ritorniamo un oggetto detailsDto coi details, didStart in fuzione di shouldDeal e stateDtoIfStarted
+      // con lo snapshot dello stato appena creato
     });
 
-    // ✅ NEW: emit DOPO commit
+    // ✅ NEW: emit DOPO join
     //
     // Perché serve:
     // - Se emettessimo dentro la transazione, rischieremmo di notificare uno stato poi rollbackato
     //   o non ancora visibile/consistente.
     // - Fuori dalla transaction siamo sicuri che ciò che notifichiamo è “definitivo”.
-    this.gameGateway.emitPlayerJoined(gameId, detailsDto);
 
-    if (didStart) {
-      this.gameGateway.emitGameStarted(gameId);
+    // TODO usiamo gameGateway per notificare che un giocatore ha joinato la partita
 
-      // Broadcast dello stato iniziale post-deal (opzionale ma consigliato)
-      if (stateDtoIfStarted !== null) {
-        this.gameGateway.emitGameStateUpdated(gameId, stateDtoIfStarted);
-      }
-    }
+    // TODO se la partita è iniziata notifichiamo che è iniziata e se esiste lo stato di gioco
+    // notifichiamolo ai client tramite gameStateUpdate
 
     return detailsDto;
   }
@@ -245,7 +239,7 @@ export class GamesService {
     // - I client dentro la GameRoom devono reagire subito (redirect/home, toast, ecc.)
     // Perché prima non serviva:
     // - lo avrebbero scoperto perché le poll successive fallivano (404) o spariva dalla lista.
-    this.gameGateway.emitGameDeleted(gameId);
+    // TODO emittiamo lo stato di game deleted
   }
 
   public async listGames(userId: string): Promise<GameSummaryDto[]> {
@@ -386,7 +380,8 @@ export class GamesService {
     //
     // Perché prima non serviva:
     // - I client rileggevano lo stato col polling e si aggiornava “a scatti”.
-    const stateDto: GameStateDto = await this.dataSource.transaction(async (manager) => {
+
+    await this.dataSource.transaction(async (manager) => {
       const gameRepository: Repository<Game> = manager.getRepository(Game);
       const participantRepository: Repository<GameParticipant> = manager.getRepository(GameParticipant);
 
@@ -495,7 +490,7 @@ export class GamesService {
     });
 
     // ✅ NEW: emit fuori dalla transazione = garantito "after commit"
-    this.gameGateway.emitGameStateUpdated(gameId, stateDto);
+    // TODO ogni volta che un giocatore gioca una carta emittiamo l'update dello game state
   }
 
   public async getGameState(gameId: string, userId: string): Promise<GameStateDto> {

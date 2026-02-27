@@ -16,7 +16,6 @@ import { GameDealingService } from './game-dealing.service';
 import { Game } from './game.entity';
 import { GameParticipant } from 'src/games/game-player.entity';
 import { ScoponeRulesService } from './scopone-rules.service';
-import { GameGateway } from './game.gateway'; // ✅ NEW: il service ora può emettere eventi realtime via gateway
 
 const MAX_PLAYERS: number = 4;
 
@@ -30,14 +29,6 @@ export class GamesService {
     private readonly dataSource: DataSource,
     private readonly scoponeRules: ScoponeRulesService,
     private readonly gameDealing: GameDealingService,
-    private readonly gameGateway: GameGateway, // ✅ NEW: iniezione del gateway per broadcast socket.io
-    /**
-     * Perché serve:
-     * - Ora che abbiamo WS, il service (che già orchestrava la logica) deve “pushare” eventi ai client.
-     * - Il gateway resta un trasporto: il service decide QUANDO emettere, il gateway si occupa di COME.
-     * Perché prima non serviva:
-     * - Prima nessun push server→client: i client vedevano i cambiamenti solo col polling HTTP.
-     */
   ) {}
 
   public async createGame(creatorId: string, gameType: GameType): Promise<Game> {
@@ -65,15 +56,7 @@ export class GamesService {
   }
 
   public async joinGame(gameId: string, userId: string): Promise<GameDetailsDto> {
-    // ✅ NEW: invece di “return transaction(...)” direttamente, catturiamo l’output
-    // per poter emettere eventi DOPO la commit della transazione.
-    //
-    // Perché serve:
-    // - joinGame cambia DB (partecipanti, eventualmente deal e status Ready).
-    // - gli eventi WS devono rappresentare stato “committato”, non uno stato intermedio.
-    // Perché prima non serviva:
-    // - prima il client avrebbe scoperto i cambiamenti col polling, quindi non c’era emissione.
-    const { detailsDto, didStart, stateDtoIfStarted } = await this.dataSource.transaction(async (manager) => {
+    return this.dataSource.transaction(async (manager) => {
       const gameRepository: Repository<Game> = manager.getRepository(Game);
       const participantRepository: Repository<GameParticipant> = manager.getRepository(GameParticipant);
       const userRepository: Repository<User> = manager.getRepository(User);
@@ -169,7 +152,7 @@ export class GamesService {
         where: { gameId: lockedGame.id },
       });
 
-      const details: GameDetailsDto = {
+      return {
         id: gameWithCreator.id,
         status: gameWithCreator.status,
         gameType: gameWithCreator.gameType,
@@ -179,48 +162,7 @@ export class GamesService {
         playersCount: finalParticipantsCount,
         maxPlayers: MAX_PLAYERS,
       };
-
-      // ✅ NEW: calcoliamo qui il “se è partita ora” (evento started) e, se sì, lo stato da broadcastare
-      //
-      // Perché serve:
-      // - Quando il 4° giocatore entra e facciamo deal + status Ready, vogliamo notificare subito i client.
-      // - In workshop: è comodo mandare anche uno state-updated iniziale post-deal a tutta la room.
-      //
-      // Perché prima non serviva:
-      // - Il client avrebbe visto status Ready e tavolo/counters solo alla prossima poll.
-      const didStartNow: boolean = shouldDeal;
-
-      // Se la partita è appena diventata Ready, prepariamo uno state DTO “snapshot” post-deal
-      // (normalizzando i null). È utile per:
-      // - client già connessi che vogliono aggiornare UI subito
-      // - ridurre race: tutti ricevono lo stesso stato base “di avvio”
-      const stateDto: GameStateDto | null = didStartNow ? this.buildGameStateDto(lockedGame) : null;
-
-      return {
-        detailsDto: details,
-        didStart: didStartNow,
-        stateDtoIfStarted: stateDto,
-      };
     });
-
-    // ✅ NEW: emit DOPO commit
-    //
-    // Perché serve:
-    // - Se emettessimo dentro la transazione, rischieremmo di notificare uno stato poi rollbackato
-    //   o non ancora visibile/consistente.
-    // - Fuori dalla transaction siamo sicuri che ciò che notifichiamo è “definitivo”.
-    this.gameGateway.emitPlayerJoined(gameId, detailsDto);
-
-    if (didStart) {
-      this.gameGateway.emitGameStarted(gameId);
-
-      // Broadcast dello stato iniziale post-deal (opzionale ma consigliato)
-      if (stateDtoIfStarted !== null) {
-        this.gameGateway.emitGameStateUpdated(gameId, stateDtoIfStarted);
-      }
-    }
-
-    return detailsDto;
   }
 
   public async deleteGame(gameId: string, userId: string): Promise<void> {
@@ -238,14 +180,6 @@ export class GamesService {
     }
 
     await this.gamesRepository.remove(game);
-
-    // ✅ NEW: broadcast "deleted" ai client in room DOPO delete riuscita
-    //
-    // Perché serve:
-    // - I client dentro la GameRoom devono reagire subito (redirect/home, toast, ecc.)
-    // Perché prima non serviva:
-    // - lo avrebbero scoperto perché le poll successive fallivano (404) o spariva dalla lista.
-    this.gameGateway.emitGameDeleted(gameId);
   }
 
   public async listGames(userId: string): Promise<GameSummaryDto[]> {
@@ -377,19 +311,11 @@ export class GamesService {
   }
 
   public async playCard(gameId: string, userId: string, cardId: number): Promise<void> {
-    // ✅ NEW: la transaction ora ritorna lo state DTO finale; poi emettiamo fuori.
-    //
-    // Perché serve:
-    // - Questo è il sostituto di GET /games/:id/state in polling.
-    // - Dopo ogni play vogliamo broadcast immediato a tutti i client.
-    // - Deve essere DOPO commit per evitare stati "fantasma".
-    //
-    // Perché prima non serviva:
-    // - I client rileggevano lo stato col polling e si aggiornava “a scatti”.
-    const stateDto: GameStateDto = await this.dataSource.transaction(async (manager) => {
+    await this.dataSource.transaction(async (manager) => {
       const gameRepository: Repository<Game> = manager.getRepository(Game);
       const participantRepository: Repository<GameParticipant> = manager.getRepository(GameParticipant);
 
+      // Lock game row
       const lockedGame: Game | null = await gameRepository.findOne({
         where: { id: gameId },
         lock: { mode: 'pessimistic_write' },
@@ -430,13 +356,16 @@ export class GamesService {
         throw new ConflictException('Card not in hand');
       }
 
+      // Remove from hand (always)
       currentPlayer.handCardIds = currentPlayer.handCardIds.filter((id) => id !== cardId);
 
+      // Ensure arrays/maps are initialized
       if (lockedGame.trickCardIds === null) lockedGame.trickCardIds = [];
       if (lockedGame.trickPlayerIds === null) lockedGame.trickPlayerIds = [];
 
       if (lockedGame.tableCardIds === null) lockedGame.tableCardIds = [];
       if (lockedGame.capturedCardIdsByUser === null) {
+        // fallback safe init (should be already set in joinGame)
         lockedGame.capturedCardIdsByUser = {};
         for (const p of participants) lockedGame.capturedCardIdsByUser[p.userId] = [];
       }
@@ -444,9 +373,11 @@ export class GamesService {
         lockedGame.capturedCardIdsByUser[userId] = [];
       }
 
+      // Log play (useful for UI/history; for Scopone not used for scoring directly)
       lockedGame.trickCardIds.push(cardId);
       lockedGame.trickPlayerIds.push(userId);
 
+      // --- Game-specific resolution ---
       if (lockedGame.gameType === GameType.ScoponeScientifico) {
         const tableIds: number[] = lockedGame.tableCardIds;
         const playedValue: number = this.scoponeRules.getCardValue(cardId);
@@ -454,48 +385,38 @@ export class GamesService {
         const capture = this.scoponeRules.findScoponeCapture(tableIds, playedValue);
 
         if (capture.length > 0) {
+          // Capture: remove captured cards from table, add captured + played to user's captured pile
           lockedGame.tableCardIds = tableIds.filter((id) => !capture.includes(id));
           lockedGame.capturedCardIdsByUser[userId].push(cardId, ...capture);
           lockedGame.lastCaptureUserId = userId;
 
+          // Fare scopa: table is now empty after capture
           if (lockedGame.tableCardIds.length === 0) {
             if (lockedGame.scopasByUser === null) lockedGame.scopasByUser = {};
             lockedGame.scopasByUser[userId] = (lockedGame.scopasByUser[userId] ?? 0) + 1;
           }
         } else {
+          // No capture: card goes to table
           lockedGame.tableCardIds.push(cardId);
         }
       } else {
-        // Tressette (placeholder for now)
+        // Tressette (placeholder for now): no table/capture logic here
+        // We'll do trick resolution in a later step specific to Tressette.
       }
 
       await participantRepository.save(currentPlayer);
 
+      // Advance turn round-robin
       lockedGame.currentPlayerIndex = (lockedGame.currentPlayerIndex + 1) % MAX_PLAYERS;
 
       await gameRepository.save(lockedGame);
 
+      // Check if the game has ended (all hands empty)
       const allHandsEmpty: boolean = participants.every((p) => (p.handCardIds ?? []).length === 0);
       if (allHandsEmpty) {
         await this.scoponeRules.handleGameEnd(lockedGame, participants, manager);
       }
-
-      // ✅ NEW: ricarichiamo lo stato finale dal DB dentro la stessa transaction
-      // (così include eventuali cambi fatti da handleGameEnd: status, scoreResult, ecc.)
-      //
-      // Perché serve:
-      // - handleGameEnd può mutare lockedGame e/o salvare altro; ricaricando siamo sicuri
-      //   di costruire il DTO “finale” e consistente.
-      const finalGame: Game | null = await gameRepository.findOne({ where: { id: gameId } });
-      if (finalGame === null) {
-        throw new NotFoundException('Game not found');
-      }
-
-      return this.buildGameStateDto(finalGame);
     });
-
-    // ✅ NEW: emit fuori dalla transazione = garantito "after commit"
-    this.gameGateway.emitGameStateUpdated(gameId, stateDto);
   }
 
   public async getGameState(gameId: string, userId: string): Promise<GameStateDto> {
@@ -507,35 +428,12 @@ export class GamesService {
       throw new NotFoundException('Game not found');
     }
 
+    // Optional: ensure caller is a participant
     const isParticipant = (await participantRepository.count({ where: { gameId, userId } })) > 0;
     if (!isParticipant) {
       throw new ForbiddenException('Not a participant');
     }
 
-    return {
-      id: game.id,
-      status: game.status,
-      gameType: game.gameType,
-      startingPlayerIndex: game.startingPlayerIndex ?? null,
-      currentPlayerIndex: game.currentPlayerIndex ?? null,
-      tableCardIds: game.tableCardIds ?? [],
-      trickCardIds: game.trickCardIds ?? [],
-      trickPlayerIds: game.trickPlayerIds ?? [],
-      capturedCardIdsByUser: game.capturedCardIdsByUser ?? {},
-      scopasByUser: game.scopasByUser ?? {},
-      scoreResult: game.scoreResult ?? null,
-    };
-  }
-
-  // ✅ NEW: helper unico per costruire GameStateDto “compatibile UI” (null → [] / {})
-  //
-  // Perché serve:
-  // - Stiamo costruendo GameStateDto in più punti (gateway snapshot, playCard emit, joinGame post-deal).
-  // - Centralizzare evita mismatch tra payload emessi e payload letti, e riduce bug.
-  // Perché prima non serviva:
-  // - Prima esisteva un solo canale “ufficiale” (GET /games/:id/state) e i client pollavano quello.
-  // - Ora abbiamo più punti di emissione e vogliamo coerenza al 100%.
-  private buildGameStateDto(game: Game): GameStateDto {
     return {
       id: game.id,
       status: game.status,
