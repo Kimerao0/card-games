@@ -29,7 +29,6 @@ export class GamesController {
     await this.gamesService.playCard(gameId, user.sub, dto.cardId);
   }
 
-  // NEW: game state for polling clients
   @Get(':id/state')
   public async getState(@Param('id') gameId: string, @CurrentUser() user: AuthUser): Promise<GameStateDto> {
     return this.gamesService.getGameState(gameId, user.sub);
