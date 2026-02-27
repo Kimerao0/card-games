@@ -38,20 +38,43 @@ src/
 ├── dtos/
 │   ├── Auth.ts                       # ILoginRequest, IRegisterRequest, IAuthResponse
 │   ├── Card.ts                       # ICard { id, value, color }, TCardColors
-│   ├── Game.ts                       # IGameDetailsDto, IGameSummaryDto, IGameHandDto, IGameParticipant, IGameCreatedResponse, IGamePlayerDto, IGameStateDto, TGameStatus, TGameType
+│   ├── Game.ts                       # IGameDetailsDto, IGameSummaryDto, IGameHandDto, IGameParticipant, IGameCreatedResponse, IGamePlayerDto, IGameStateDto, TGameStatus, TGameType, TeamScoreDetails, ScoponeScoreResult
 │   └── User.ts                       # IUser { id, email, name }
 ├── pages/
 │   ├── Home/index.tsx                # Landing page with game selection buttons
-│   ├── Login/index.tsx               # Tabbed login/register form with error handling and safe redirect
+│   ├── Login/
+│   │   ├── index.tsx                 # Tabbed login/register form with error handling and safe redirect
+│   │   └── components/
+│   │       ├── LoginForm.tsx         # Login form sub-component
+│   │       ├── RegisterForm.tsx      # Register form sub-component
+│   │       └── loginUtils.ts         # Login utility functions
 │   ├── NotFound/index.tsx            # 404 page
-│   ├── ScoponeScientifico/index.tsx  # Game page: rules, create game (passes 'ScoponeScientifico'), join game dialog, navigate to /game/:id
-│   ├── Tresette/index.tsx            # Game page: rules, create game (passes 'Tresette'), join game dialog, navigate to /game/:id
+│   ├── ScoponeScientifico/index.tsx  # Game lobby page for Scopone Scientifico (uses GameLobbyPage with config)
+│   ├── Tresette/index.tsx            # Game lobby page for Tresette (uses GameLobbyPage with config)
+│   ├── AdminDelete/index.tsx         # Admin page: list all games with delete confirmation dialog
+│   ├── GameLobbyPage/
+│   │   ├── index.tsx                 # Reusable config-driven lobby page (GameLobbyConfig, GameLobbyTheme)
+│   │   └── components/
+│   │       ├── GamePageBackground.tsx
+│   │       ├── GameHero.tsx
+│   │       ├── JoinGameDialog.tsx
+│   │       └── RulesCard.tsx
 │   ├── GameRoom/
-│   │   └── index.tsx                 # Game room page for /game/:id — WaitingRoom (polls until Ready) or Playroom with real dealt cards
+│   │   ├── index.tsx                 # Game room page for /game/:id — WaitingRoom (polls until Ready) or Playroom with real dealt cards
+│   │   └── components/
+│   │       ├── WaitingRoom.tsx       # Progress spinner, seat indicators, player count
+│   │       ├── ScopaNotification.tsx # Scopa event notification
+│   │       ├── ScoreOverlay.tsx      # Final score display overlay
+│   │       └── useGameRoomState.ts   # Custom hook: polling intervals, game state computation, turn logic
 │   └── Playroom/
 │       ├── index.tsx                 # Game table wrapper; accepts cards?, tableCards?, isMyTurn?, onPlayCard?, capturedMine?, capturedPartner?, currentTurnSeat?, playerNames?
 │       └── CardsField/
 │           ├── index.tsx             # 4-player table layout: opponents' card backs, player hand (bottom), face-up table cards with enter/leave animations, TurnLabel, captured counters, CenterPlayOverlay; active player name highlighted green
+│           ├── useTableCardAnimation.ts # Hook for enter/leave animation state management
+│           ├── components/
+│           │   ├── CentralField.tsx  # Table center: turn label, captured counters, table cards, overlay
+│           │   ├── OpponentSeat.tsx  # Opponent card backs at each position
+│           │   └── PlayerHand.tsx    # Current player's sorted hand
 │           └── PlayerCard/
 │               └── index.tsx         # Individual card with click-to-play CSS transition animation; disabled when not player's turn
 ├── store/
@@ -76,7 +99,7 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 
 **Public routes:** `/` (Home), `/login` (Login).
 
-**Protected routes (via AuthGuard):** `/giochi/scopone-scientifico` (ScoponeScientifico page), `/giochi/tresette` (Tresette page), `/dev` (Playroom dev view with random cards), `/game/:id` (GameRoom — waiting room or live playroom).
+**Protected routes (via AuthGuard):** `/giochi/scopone-scientifico` (ScoponeScientifico page), `/giochi/tresette` (Tresette page), `/dev` (Playroom dev view with random cards), `/game/:id` (GameRoom — waiting room or live playroom), `/admin/delete` (AdminDelete — admin page to list and delete games).
 
 **Catch-all:** `*` (NotFound).
 
@@ -133,7 +156,9 @@ The `Playroom` component accepts all game props as optional: `cards?`, `tableCar
 
 ### GameRoom Page
 
-`src/pages/GameRoom/index.tsx` handles the `/game/:id` route. It uses two polling intervals managed via `useState` + `useEffect` watching `game?.status`:
+`src/pages/GameRoom/index.tsx` handles the `/game/:id` route. Sub-components in `GameRoom/components/`: `WaitingRoom` (progress spinner, seat indicators, player count), `ScopaNotification` (scopa event notification), `ScoreOverlay` (final score display), `useGameRoomState` hook (polling intervals, game state computation, turn logic).
+
+The `useGameRoomState` hook manages two polling intervals watching `game?.status`:
 - **`pollingInterval`** (for `useGetGameQuery`): 3000ms when `Created`, 0 otherwise
 - **`statePollingInterval`** (for `useGetGameStateQuery`): 800ms when `Ready`, 0 otherwise
 
@@ -147,7 +172,7 @@ Computed memos:
 - **`tableCards`**: maps `gameState.tableCardIds` to `ICard[]`
 - **`capturedCounts`**: `mine` = current user's captured card count; `partner` = player at `myIndex + 2`'s count
 
-`handlePlay(cardId)` calls `playCard({ gameId, cardId }).unwrap()` (no-op on error; polling re-aligns state). All computed values are forwarded to `<Playroom>`. The inline `WaitingRoom` sub-component shows a progress spinner, a row of seat indicators (filled green for joined players), and the current player count.
+`handlePlay(cardId)` calls `playCard({ gameId, cardId }).unwrap()` (no-op on error; polling re-aligns state). All computed values are forwarded to `<Playroom>`.
 
 ### Page Components
 

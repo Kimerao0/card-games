@@ -73,7 +73,8 @@ src/
         ├── game-player.dto.ts     # GamePlayerDto: userId, name — returned by GET /games/:id/players
         ├── game-hand.dto.ts       # GameHandDto: gameId, userId, handCardIds (card IDs)
         ├── play-card.dto.ts       # PlayCardDto: cardId (@IsInt, @Min(1)) — body of POST /games/:id/play
-        └── game-state.dto.ts      # GameStateDto: id, status, gameType, startingPlayerIndex, currentPlayerIndex, tableCardIds, trickCardIds, trickPlayerIds, capturedCardIdsByUser
+        ├── game-score.dto.ts      # TeamScoreDetails (carte, denari, settebello, primiera, scope), ScoponeScoreResult (teamA, teamB)
+        └── game-state.dto.ts      # GameStateDto: id, status, gameType, startingPlayerIndex, currentPlayerIndex, tableCardIds, trickCardIds, trickPlayerIds, capturedCardIdsByUser, scopasByUser, scoreResult
 ```
 
 **Configuration:** Env vars validated with Joi in `config/config.types.ts`. Required: `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`, `DB_SYNC`, `JWT_SECRET`, `JWT_EXPIRES_IN`. Optional with defaults: `DB_HOST` (localhost), `DB_PORT` (5432), `APP_MESSAGE_PREFIX`. See `docker-compose.yaml` for local PostgreSQL 16.
