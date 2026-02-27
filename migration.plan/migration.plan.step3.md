@@ -1,77 +1,115 @@
-# STEP 3 — Update GamesModule (wiring completo)
+# STEP 3 — Attach Socket.IO to Nest (IoAdapter in main.ts)
 
-## Obiettivo
+## Obiettivo dello step
 
-Rendere funzionante questo costruttore nel gateway:
+Abilitare Socket.IO sullo stesso server/porta dell'API HTTP (es. `http://localhost:3000`), così:
+
+- Il client può fare `io('http://localhost:3000', { auth: { token } })`
+- Il backend può gestire sia REST che WS sullo stesso runtime
+
+Questo step non cambia logica gioco: rende solo "attivo" lo stack WS a runtime.
+
+---
+
+## 3.1 — Verifica dipendenze
+
+Assicurati che in `api/package.json` ci siano:
+
+- `@nestjs/platform-socket.io`
+- `@nestjs/websockets`
+- `socket.io`
+
+---
+
+## 3.2 — Modifica `api/src/main.ts`
+
+**File:** `api/src/main.ts` [MODIFY]
+
+### A) Import
+
+Aggiungi:
 
 ```ts
-public constructor(
-  private readonly jwtService: JwtService,
-  @InjectRepository(Game) private readonly gamesRepository: Repository<Game>,
-) {}
+import { IoAdapter } from "@nestjs/platform-socket.io";
 ```
 
-Per farlo, `GamesModule` deve:
+### B) Registra adapter
 
-- Importare `JwtModule` (così `JwtService` esiste)
-- Importare `TypeOrmModule.forFeature([Game])` (così esiste `Repository<Game>`)
-- Registrare `GameGateway` in `providers`
-
----
-
-## 3.1 — Modifica `api/src/games/games.module.ts`
-
-Ecco una versione completa tipica (adatta alla tua struttura descritta nel CLAUDE.md). Tu dovrai solo verificare gli import già presenti e non duplicarli.
-
----
-
-## 3.2 — Perché questa versione funziona
-
-- `TypeOrmModule.forFeature([Game, GameParticipant])` crea i provider: `Repository<Game>` e `Repository<GameParticipant>`
-- `JwtModule.registerAsync(...)` crea `JwtService`
-- `GameGateway` è in `providers`, quindi Nest lo costruisce e gli inietta le dipendenze
-
----
-
-## 3.3 — Se stai già usando una config tipizzata (opzionale)
-
-Dal CLAUDE.md vedo che hai `TypedConfigService` e `auth.config.ts`. Se vuoi essere coerente (ma non è obbligatorio per workshop), al posto di `ConfigService` puoi fare:
+Dopo aver creato l'app Nest (e prima di `listen()`), registra l'adapter:
 
 ```ts
-inject: [TypedConfigService];
+app.useWebSocketAdapter(new IoAdapter(app));
 ```
 
-e leggere `typedConfigService.auth.jwt.secret` / ecc.
+### C) Posizione consigliata nel file
 
-Per ora la versione sopra (`ConfigService` + env keys) è la più rapida.
+Schema tipico (pseudocodice):
+
+```ts
+const app = await NestFactory.create(AppModule);
+
+app.enableCors({ ... }); // se già lo usi per HTTP
+
+app.useWebSocketAdapter(new IoAdapter(app));
+
+await app.listen(port, '0.0.0.0');
+```
+
+> **Nota:** il CORS per socket.io lo gestisci già nel `@WebSocketGateway({ cors: ... })`, quindi qui non devi "fare cose strane": basta la riga `useWebSocketAdapter`.
 
 ---
 
-## 3.4 — Controllo compilazione
+## 3.3 — Avvio e smoke test
 
-Ora che `GameGateway` è nel modulo, build e start devono essere puliti:
+**Avvia server:**
 
 ```bash
 cd api
-yarn build
 yarn start:dev
 ```
 
-**Se vedi errori tipici:**
+**Cosa verificare:**
 
-- `"Nest can't resolve dependencies of GameGateway (JwtService?)"` → `JwtModule` non è davvero nel contesto, o `ConfigModule` non risolve le env
-- `"Nest can't resolve dependencies of GameGateway (Repository<Game>?)"` → manca `TypeOrmModule.forFeature([Game])` nello stesso modulo del gateway, oppure import sbagliato di `Game`
+- Il server parte senza eccezioni legate a websockets/platform-socket.io
+- Nessun errore tipo "cannot read property of undefined" o injection problems (quelli erano più da step 2/3 vecchi)
 
 ---
 
-## 3.5 — Mini test manuale (workshop-friendly)
+## 3.4 — Test manuale minimo (senza ancora frontend)
 
-Anche senza client UI pronto, puoi verificare che il server non crashi all'avvio (già è un ottimo segnale).
+Hai due opzioni "semplici" per il workshop:
 
-Per testare davvero il websocket ti servirà lo step 4 (IoAdapter nel main) e lo step 6/7 (socket.io-client), ma intanto questo step ti assicura che:
+### Opzione A: test con frontend (quando ci arrivi)
 
-- Il gateway viene creato
-- Le dipendenze sono risolte
+Quando implementerai il client, questo step lo validi subito perché vedrai la connessione socket stabilirsi.
+
+### Opzione B: test "grezzo" subito (solo server)
+
+Aggiungi temporaneamente un log in `handleConnection` del gateway:
+
+```ts
+// dentro handleConnection, dopo auth ok
+console.log("WS connected", client.id, client.data.userId);
+```
+
+Poi prova a connetterti con uno script node minimale (anche in una cartella temp), tipo:
+
+```js
+// node test-ws.js
+const { io } = require("socket.io-client");
+
+const socket = io("http://localhost:3000", { auth: { token: "PASTE_JWT" } });
+
+socket.on("connect", () => console.log("connected", socket.id));
+socket.on("connect_error", (err) => console.log("connect_error", err.message));
+```
+
+Se:
+
+- token valido → `connected` + log server
+- token invalido → `connect_error` (o disconnect rapido)
+
+> Questo è opzionale: se preferisci evitare extra file, rimanda la validazione allo step client.
 
 ---
 
@@ -79,7 +117,6 @@ Per testare davvero il websocket ti servirà lo step 4 (IoAdapter nel main) e lo
 
 Lo step 3 è completato quando:
 
-- [ ] `GamesModule` importa `TypeOrmModule.forFeature([Game, GameParticipant])`
-- [ ] `GamesModule` importa `JwtModule.registerAsync(...)`
-- [ ] `GamesModule` ha `GameGateway` in `providers`
-- [ ] `yarn build` e `yarn start:dev` non falliscono per DI / provider resolution
+- [ ] `main.ts` registra `IoAdapter`
+- [ ] `yarn start:dev` parte
+- [ ] Il gateway riceve connessioni (anche solo tramite test rapido o più avanti col client)
