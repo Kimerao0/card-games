@@ -40,14 +40,6 @@ Obiettivo della migrazione:
 - Game state updated
 - Game deleted
 
-### Nota workshop
-
-- Nessuna autorizzazione su `join-room`
-- Non production-ready
-- Token salvato in **sessionStorage**
-
----
-
 ## Architecture After Migration
 
 ```
@@ -156,7 +148,7 @@ this.server.to(`game:${gameId}`).emit(...)
 **File:** `api/src/main.ts`
 
 ```ts
-import { IoAdapter } from '@nestjs/platform-socket.io';
+import { IoAdapter } from "@nestjs/platform-socket.io";
 
 app.useWebSocketAdapter(new IoAdapter(app));
 ```
@@ -195,7 +187,7 @@ this.gateway.emitGameStateUpdated(gameId, stateDto);
 Pattern:
 
 ```ts
-const stateDto = await this.dataSource.transaction(async manager => {
+const stateDto = await this.dataSource.transaction(async (manager) => {
   // DB updates
   return builtStateDto;
 });
