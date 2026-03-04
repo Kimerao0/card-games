@@ -66,16 +66,20 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
     if (game?.status === 'Created') {
       setPollingInterval(5000);
       setStatePollingInterval(0);
-    } else if (game?.status === 'Ready') {
+      return;
+    }
+    if (game?.status === 'Ready') {
       setPollingInterval(0);
       setStatePollingInterval(5000);
-    } else if (game?.status === 'Scoring') {
-      setPollingInterval(0);
-      setStatePollingInterval(0);
-    } else {
-      setPollingInterval(0);
-      setStatePollingInterval(0);
+      return;
     }
+    if (game?.status === 'Scoring') {
+      setPollingInterval(0);
+      setStatePollingInterval(0);
+      return;
+    }
+    setPollingInterval(0);
+    setStatePollingInterval(0);
   }, [game?.status]);
 
   const playerCards: ICard[] = useMemo(() => {

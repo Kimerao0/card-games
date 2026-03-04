@@ -2,6 +2,7 @@ import { type FC, useEffect } from 'react';
 import { useGetProfileQuery } from '@/store/api/usersApi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout, setCredentials, selectCurrentUser, selectToken } from '@/store/slices/authSlice';
+import { connectSocket } from '@/services/socketService';
 
 export const AuthInitializer: FC = () => {
   const dispatch = useAppDispatch();
@@ -15,6 +16,7 @@ export const AuthInitializer: FC = () => {
   useEffect(() => {
     if (profile && token && currentUser === null) {
       dispatch(setCredentials({ user: profile, token }));
+      connectSocket(token);
     }
   }, [profile, token, currentUser, dispatch]);
 

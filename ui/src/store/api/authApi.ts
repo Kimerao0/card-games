@@ -1,6 +1,7 @@
 import { baseApi } from '@/store/api/baseApi';
 import { setCredentials } from '@/store/slices/authSlice';
 import type { ILoginRequest, IRegisterRequest, IAuthResponse } from '@/dtos/Auth';
+import { connectSocket } from '@/services/socketService';
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -13,6 +14,7 @@ export const authApi = baseApi.injectEndpoints({
       onQueryStarted: async (_arg, { dispatch, queryFulfilled }): Promise<void> => {
         const { data } = await queryFulfilled;
         dispatch(setCredentials({ user: data.user, token: data.accessToken }));
+        connectSocket(data.accessToken);
       },
       invalidatesTags: ['Games', 'GameHand'],
     }),
@@ -25,6 +27,7 @@ export const authApi = baseApi.injectEndpoints({
       onQueryStarted: async (_arg, { dispatch, queryFulfilled }): Promise<void> => {
         const { data } = await queryFulfilled;
         dispatch(setCredentials({ user: data.user, token: data.accessToken }));
+        connectSocket(data.accessToken);
       },
     }),
   }),
