@@ -9,9 +9,6 @@ import { ScoreOverlay } from './components/ScoreOverlay';
 import { ScopaNotification } from './components/ScopaNotification';
 
 import { useAppDispatch } from '@/store/hooks';
-import { setGameState, setGameStatus, setPlayersCount } from '@/store/slices/gameSocketSlice';
-import { joinGameRoom, leaveGameRoom, onGameDeleted, onGamePlayerJoined, onGameStarted, onGameStateUpdated } from '@/services/socketService';
-
 export const GameRoom: FC = () => {
   const { id: gameId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -19,39 +16,19 @@ export const GameRoom: FC = () => {
 
   // ---- WebSocket: join/leave room ----
   useEffect(() => {
-    if (!gameId) return;
-
-    joinGameRoom(gameId);
-
-    return () => {
-      leaveGameRoom(gameId);
-    };
+    // TODO aggiungiamo l'azione joinGameRoom()
+    // TODO aggiungiamo sul unmount del componente l'azione leaveGameRoom.
+    // Con lo useEffect per eseguire un azione all'onmount del componente
+    // bisogna inserirla dentro un "return () => {}"
   }, [gameId]);
 
-  // ---- WebSocket: subscribe events ----
   useEffect(() => {
-    const unsubState = onGameStateUpdated((state) => {
-      dispatch(setGameState(state));
-    });
-
-    const unsubStarted = onGameStarted(() => {
-      dispatch(setGameStatus('Ready'));
-    });
-
-    const unsubPlayerJoined = onGamePlayerJoined((details) => {
-      dispatch(setPlayersCount(details.playersCount));
-      dispatch(setGameStatus(details.status));
-    });
-
-    const unsubDeleted = onGameDeleted(() => {
-      navigate('/');
-    });
+    // ---- WebSocket: subscribe events ----
+    // TODO  Registriamo i listener degli eventi socket al mount del componente:
+    // “Quando sono visibile, ascolta questi eventi dal socket”
 
     return () => {
-      unsubState();
-      unsubStarted();
-      unsubPlayerJoined();
-      unsubDeleted();
+      //“Quando non sono più visibile, smetti di ascoltarli”
     };
   }, [dispatch, navigate]);
 

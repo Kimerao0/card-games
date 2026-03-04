@@ -22,7 +22,7 @@ export type TGameType = 'ScoponeScientifico' | 'Tresette';
 
 export interface IGameDetailsDto {
   readonly id: string;
-  readonly status: string;
+  readonly status: TGameStatus;
   readonly gameType: TGameType;
   readonly createdAt: string;
   readonly updatedAt: string;
