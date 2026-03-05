@@ -22,6 +22,8 @@ interface CapturedCounts {
 
 export interface GameRoomState {
   readonly game: IGameSummaryDto | undefined;
+  readonly effectiveStatus: string | undefined;
+  readonly effectivePlayersCount: number | null;
   readonly isLoadingGame: boolean;
   readonly isError: boolean;
   readonly isLoadingHand: boolean;
@@ -42,6 +44,7 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
   const currentUser = useAppSelector(selectCurrentUser);
   const socketGameState = useAppSelector((state) => state.gameSocket.gameState);
   const socketGameStatus = useAppSelector((state) => state.gameSocket.gameStatus);
+  const socketPlayersCount = useAppSelector((state) => state.gameSocket.playersCount);
 
   const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId);
   const effectiveStatus = socketGameState?.status ?? socketGameStatus ?? game?.status;
@@ -157,6 +160,8 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
 
   return {
     game,
+    effectiveStatus,
+    effectivePlayersCount: socketPlayersCount,
     isLoadingGame,
     isError,
     isLoadingHand,

@@ -59,6 +59,7 @@ export const GameRoom: FC = () => {
   const state = useGameRoomState(gameId!);
   const {
     game,
+    effectiveStatus,
     isLoadingGame,
     isError,
     isLoadingHand,
@@ -95,11 +96,11 @@ export const GameRoom: FC = () => {
     );
   }
 
-  if (game.status === 'Created') {
-    return <WaitingRoom playersCount={game.playersCount} maxPlayers={game.maxPlayers} gameId={game.id} />;
+  if (effectiveStatus === 'Created') {
+    return <WaitingRoom playersCount={state.effectivePlayersCount ?? game.playersCount} maxPlayers={game.maxPlayers} gameId={game.id} />;
   }
 
-  if (game.status === 'Scoring') {
+  if (effectiveStatus === 'Scoring') {
     if (scoreResult && players) {
       return (
         <>
@@ -124,7 +125,7 @@ export const GameRoom: FC = () => {
     );
   }
 
-  if (game.status === 'Ready') {
+  if (effectiveStatus === 'Ready') {
     if (isLoadingHand) {
       return (
         <RoomBackground>

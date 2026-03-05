@@ -227,9 +227,56 @@ Non cambia comportamento, ma evita confusione.
 
 ---
 
-## 7.6 — Cosa NON cambiare (in questi file)
+## 7.6 — Aggiornare le guardie di rendering in GameRoom/index.tsx
 
-- `GameRoom/index.tsx` rimane uguale: gia fa subscribe + dispatch sullo slice.
+**File:** `ui/src/pages/GameRoom/index.tsx` [MODIFY]
+
+`GameRoom/index.tsx` ora fa subscribe + dispatch sullo slice (step 6), ma la logica di rendering usa ancora `game.status` (dal `useGetGameQuery` HTTP, chiamato una sola volta). Poiché `game` non viene più aggiornato via polling, `game.status` resta fermo al valore iniziale (es. `Created`). Bisogna usare `effectiveStatus` dal hook.
+
+### A) Esporre effectiveStatus e effectivePlayersCount dal hook
+
+In `useGameRoomState.ts`, aggiungere all'interfaccia `GameRoomState`:
+
+```ts
+readonly effectiveStatus: string | undefined;
+readonly effectivePlayersCount: number | null;
+```
+
+E nel return del hook:
+
+```ts
+effectiveStatus,
+effectivePlayersCount: socketPlayersCount,
+```
+
+### B) Sostituire game.status con effectiveStatus nel rendering
+
+**Prima:**
+
+```tsx
+if (game.status === 'Created') {
+  return <WaitingRoom playersCount={game.playersCount} ... />;
+}
+if (game.status === 'Scoring') { ... }
+if (game.status === 'Ready') { ... }
+```
+
+**Dopo:**
+
+```tsx
+if (effectiveStatus === 'Created') {
+  return <WaitingRoom playersCount={effectivePlayersCount ?? game.playersCount} ... />;
+}
+if (effectiveStatus === 'Scoring') { ... }
+if (effectiveStatus === 'Ready') { ... }
+```
+
+> `game` (da HTTP) serve ancora solo per metadata statico (`isUserInGame`, `maxPlayers`, `id`). Lo status live deve sempre venire da `effectiveStatus`.
+
+---
+
+## 7.7 — Cosa NON cambiare (in questi file)
+
 - `Playroom` continua a ricevere i props derivati da `useGameRoomState`.
 
 ---
@@ -241,4 +288,6 @@ Non cambia comportamento, ma evita confusione.
 - [ ] `gameState` arriva da `state.gameSocket.gameState`
 - [ ] `isReady`/`isScoring` derivati da socket (`effectiveStatus`)
 - [ ] `getHand` e `getPlayers` continuano via HTTP, ma "triggerati" dallo status socket
+- [ ] `GameRoom/index.tsx` usa `effectiveStatus` (non `game.status`) per tutte le guardie di rendering
+- [ ] `WaitingRoom` mostra `effectivePlayersCount` (dal socket) con fallback a `game.playersCount`
 - [ ] UI aggiornata realtime senza polling
