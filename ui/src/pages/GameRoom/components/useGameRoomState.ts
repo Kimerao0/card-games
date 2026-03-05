@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ALL_CARDS } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
 import type { IGamePlayerDto, IGameStateDto, IGameSummaryDto, ScoponeScoreResult } from '@/dtos/Game';
-import { useGetGameHandQuery, useGetGamePlayersQuery, useGetGameQuery, useGetGameStateQuery, usePlayCardMutation } from '@/store/api/gamesApi';
+import { useGetGameHandQuery, useGetGamePlayersQuery, useGetGameQuery, usePlayCardMutation } from '@/store/api/gamesApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 
@@ -40,13 +40,13 @@ export interface GameRoomState {
 
 export const useGameRoomState = (gameId: string): GameRoomState => {
   const currentUser = useAppSelector(selectCurrentUser);
+  const socketGameState = useAppSelector((state) => state.gameSocket.gameState);
+  const socketGameStatus = useAppSelector((state) => state.gameSocket.gameStatus);
 
-  const [pollingInterval, setPollingInterval] = useState(0);
-  const [statePollingInterval, setStatePollingInterval] = useState(0);
-
-  const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId, { pollingInterval });
-  const isReady = game?.status === 'Ready';
-  const isScoring = game?.status === 'Scoring';
+  const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId);
+  const effectiveStatus = socketGameState?.status ?? socketGameStatus ?? game?.status;
+  const isReady = effectiveStatus === 'Ready';
+  const isScoring = effectiveStatus === 'Scoring';
   const isGameActive = isReady || isScoring;
 
   const { data: handDto, isLoading: isLoadingHand } = useGetGameHandQuery(gameId, {
@@ -55,32 +55,7 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
 
   const { data: players } = useGetGamePlayersQuery(gameId, { skip: !isGameActive });
 
-  const { data: gameState } = useGetGameStateQuery(gameId, {
-    skip: !isGameActive || !game?.isUserInGame,
-    pollingInterval: statePollingInterval,
-  });
-
   const [playCard, { isLoading: isPlaying }] = usePlayCardMutation();
-
-  useEffect(() => {
-    if (game?.status === 'Created') {
-      setPollingInterval(5000);
-      setStatePollingInterval(0);
-      return;
-    }
-    if (game?.status === 'Ready') {
-      setPollingInterval(0);
-      setStatePollingInterval(5000);
-      return;
-    }
-    if (game?.status === 'Scoring') {
-      setPollingInterval(0);
-      setStatePollingInterval(0);
-      return;
-    }
-    setPollingInterval(0);
-    setStatePollingInterval(0);
-  }, [game?.status]);
 
   const playerCards: ICard[] = useMemo(() => {
     if (!handDto?.handCardIds) return [];
@@ -107,36 +82,36 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
   }, [players, currentUser]);
 
   const isMyTurn = useMemo(() => {
-    if (!currentUser || !players || !gameState) return false;
-    if (gameState.currentPlayerIndex === null || gameState.currentPlayerIndex === undefined) return false;
-    const currentTurnPlayer = players[gameState.currentPlayerIndex];
+    if (!currentUser || !players || !socketGameState) return false;
+    if (socketGameState.currentPlayerIndex === null || socketGameState.currentPlayerIndex === undefined) return false;
+    const currentTurnPlayer = players[socketGameState.currentPlayerIndex];
     if (!currentTurnPlayer) return false;
     return currentTurnPlayer.userId === currentUser.id;
-  }, [currentUser, players, gameState]);
+  }, [currentUser, players, socketGameState]);
 
   const currentTurnSeat: TSeat | undefined = useMemo(() => {
-    if (!players || !gameState) return undefined;
-    if (gameState.currentPlayerIndex === null || gameState.currentPlayerIndex === undefined) return undefined;
+    if (!players || !socketGameState) return undefined;
+    if (socketGameState.currentPlayerIndex === null || socketGameState.currentPlayerIndex === undefined) return undefined;
     if (myIndex === -1) return undefined;
 
-    const offset = (gameState.currentPlayerIndex - myIndex + players.length) % players.length;
+    const offset = (socketGameState.currentPlayerIndex - myIndex + players.length) % players.length;
     if (offset === 0) return 'bottom';
     if (offset === 1) return 'right';
     if (offset === 2) return 'top';
     return 'left';
-  }, [players, gameState, myIndex]);
+  }, [players, socketGameState, myIndex]);
 
   const tableCards: ICard[] = useMemo(() => {
-    if (!gameState?.tableCardIds) return [];
-    return gameState.tableCardIds.map((id) => ALL_CARDS[id - 1]);
-  }, [gameState?.tableCardIds]);
+    if (!socketGameState?.tableCardIds) return [];
+    return socketGameState.tableCardIds.map((id) => ALL_CARDS[id - 1]);
+  }, [socketGameState?.tableCardIds]);
 
   const capturedCounts = useMemo(() => {
-    if (!currentUser || !players || !gameState || myIndex === -1) {
+    if (!currentUser || !players || !socketGameState || myIndex === -1) {
       return { mine: 0, partner: 0 };
     }
 
-    const byUser = gameState.capturedCardIdsByUser ?? {};
+    const byUser = socketGameState.capturedCardIdsByUser ?? {};
     const mine = (byUser[currentUser.id] ?? []).length;
 
     const partnerIndex = (myIndex + 2) % players.length;
@@ -144,13 +119,13 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
     const partner = partnerId ? (byUser[partnerId] ?? []).length : 0;
 
     return { mine, partner };
-  }, [currentUser, players, gameState, myIndex]);
+  }, [currentUser, players, socketGameState, myIndex]);
 
   const prevScopasByUserRef = useRef<Record<string, number>>({});
   const [scopaNotification, setScopaNotification] = useState<string | null>(null);
 
   useEffect(() => {
-    const current = gameState?.scopasByUser;
+    const current = socketGameState?.scopasByUser;
     if (!current || !players) return;
 
     const prev = prevScopasByUserRef.current;
@@ -167,7 +142,7 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
     }
 
     prevScopasByUserRef.current = { ...current };
-  }, [gameState?.scopasByUser, players]);
+  }, [socketGameState?.scopasByUser, players]);
 
   const handlePlay = async (cardId: number): Promise<void> => {
     if (!isMyTurn) return;
@@ -176,7 +151,7 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
     try {
       await playCard({ gameId, cardId }).unwrap();
     } catch {
-      // polling riallinea
+      // lo stato si riallinea quando il server emette game:state-updated
     }
   };
 
@@ -186,14 +161,14 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
     isError,
     isLoadingHand,
     players,
-    gameState,
+    gameState: socketGameState!,
     playerCards,
     playerNames,
     isMyTurn,
     currentTurnSeat,
     tableCards,
     capturedCounts,
-    scoreResult: gameState?.scoreResult,
+    scoreResult: socketGameState?.scoreResult,
     scopaNotification,
     handlePlay,
   };

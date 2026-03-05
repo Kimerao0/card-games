@@ -19,13 +19,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Backend for a platform for Italian card games (Scopone Scientifico, Tresette). Part of a monorepo — see the root `CLAUDE.md` for full project context including the frontend (`ui/`).
 
-**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth (Passport), Jest.
+**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth (Passport), Socket.IO (WebSocket), Jest.
 
-**Structure:** NestJS modules with dependency injection. Entry point in `src/main.ts` (default Express adapter), listens on `0.0.0.0:3000`. CORS enabled for `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`) and `ClassSerializerInterceptor`. Global `JwtAuthGuard` (all routes protected unless marked `@Public()`).
+**Structure:** NestJS modules with dependency injection. Entry point in `src/main.ts` (default Express adapter + IoAdapter for WebSocket), listens on `0.0.0.0:3000`. CORS enabled for `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`) and `ClassSerializerInterceptor`. Global `JwtAuthGuard` (all routes protected unless marked `@Public()`). WebSocket (socket.io) shares port 3000 for realtime events.
 
 ```
 src/
-├── main.ts                        # Entry point (Express, CORS, ValidationPipe, ClassSerializerInterceptor)
+├── main.ts                        # Entry point (Express, CORS, ValidationPipe, ClassSerializerInterceptor, IoAdapter for WebSocket)
 ├── app.module.ts                  # Root module (ConfigModule, TypeOrmModule, AuthModule, UsersModule, GamesModule, global JwtAuthGuard)
 ├── app.controller.ts              # GET / → "Hello World!"
 ├── app.service.ts
@@ -57,9 +57,10 @@ src/
 │   ├── card.types.ts              # TCardColors ('spades'|'hearts'|'diamonds'|'clubs'), ICard { id, value, color }
 │   └── shuffle.util.ts            # shuffle<T>(items): Fisher-Yates shuffle, returns new array
 └── games/
-    ├── games.module.ts            # Imports Game + GameParticipant entities, UsersModule; providers: GamesService, ScoponeRulesService, GameDealingService
+    ├── games.module.ts            # Imports Game + GameParticipant entities, UsersModule, JwtModule; providers: GamesService, ScoponeRulesService, GameDealingService, GameGateway
     ├── games.controller.ts        # POST /games, GET /games, GET /games/:id, GET /games/:id/players, GET /games/:id/join, GET /games/:id/hand, POST /games/:id/play, GET /games/:id/state, DELETE /games/:id (creator only, 204)
-    ├── games.service.ts           # Orchestration only: createGame, listGames, getGame, getPlayers, joinGame, getHand, playCard, getGameState, deleteGame — delegates rules to ScoponeRulesService, dealing to GameDealingService
+    ├── game.gateway.ts            # WebSocket gateway (socket.io): JWT auth on connection, room management (game:join-room/leave-room), emit helpers (emitPlayerJoined, emitGameStarted, emitGameStateUpdated, emitGameDeleted)
+    ├── games.service.ts           # Orchestration: createGame, listGames, getGame, getPlayers, joinGame, getHand, playCard, getGameState, deleteGame — delegates rules to ScoponeRulesService, dealing to GameDealingService; emits WebSocket events via GameGateway after transaction commits
     ├── scopone-rules.service.ts   # Pure Scopone rules (no DB): getCardValue, getCardColor, findScoponeCapture, calculateScoponeScore, handleGameEnd
     ├── game-dealing.service.ts    # Pure dealing logic (no DB): dealForGameType, initCapturedByUser, initScopasByUser, pickRandomStartingIndex
     ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gameType(GameType), gamePlayers(OneToMany→GameParticipant), startingPlayerIndex(int|null), currentPlayerIndex(int|null), trickCardIds(int[]|null), trickPlayerIds(uuid[]|null), tableCardIds(int[]|null), capturedCardIdsByUser(jsonb|null), scopasByUser(jsonb|null), lastCaptureUserId(uuid|null), scoreResult(jsonb|null), createdAt, updatedAt
@@ -89,7 +90,9 @@ src/
 
 **Play card (`POST /games/:id/play`, body `PlayCardDto { cardId }`):** Acquires a pessimistic write lock on the game. Validates that the caller is the current player (`currentPlayerIndex`). Removes the card from the player's hand. For Scopone Scientifico, calls `findScoponeCapture(tableCardIds, playedValue)` to determine a capture: first checks for an exact value match on the table; if none, finds all card combinations on the table that sum to the played card's value, and chooses the one with fewest cards (tie-broken by sum of card IDs, then lexicographic comparison). If a capture is found, the captured cards plus the played card are added to the player's `capturedCardIdsByUser` entry and removed from `tableCardIds`; otherwise the played card is added to `tableCardIds`. Advances `currentPlayerIndex` round-robin.
 
-**Game state (`GET /games/:id/state`):** Returns a `GameStateDto` with the live state for polling clients: `id`, `status`, `gameType`, `startingPlayerIndex`, `currentPlayerIndex`, `tableCardIds`, `trickCardIds`, `trickPlayerIds`, `capturedCardIdsByUser`. Only accessible to game participants (`ForbiddenException` otherwise).
+**Game state (`GET /games/:id/state`):** Returns a `GameStateDto` with the live state: `id`, `status`, `gameType`, `startingPlayerIndex`, `currentPlayerIndex`, `tableCardIds`, `trickCardIds`, `trickPlayerIds`, `capturedCardIdsByUser`. Only accessible to game participants (`ForbiddenException` otherwise). Kept as HTTP fallback; the frontend now receives state updates in realtime via WebSocket.
+
+**WebSocket (socket.io):** The `GameGateway` handles realtime communication. JWT authentication on handshake (`client.handshake.auth.token`). Clients subscribe to a room via `game:join-room` (receives an immediate state snapshot) and unsubscribe via `game:leave-room`. Server pushes events to room members: `game:player-joined` (player joins the game), `game:started` (4th player triggers deal, status → Ready), `game:state-updated` (after every card play or state change, carries full `GameStateDto`), `game:deleted` (game deleted by creator). Events are emitted by `GamesService` **after** DB transaction commits, never inside transactions. The `buildGameStateDto()` helper normalizes null fields to empty arrays/objects for frontend consistency.
 
 **TypeScript:** target ES2023, module `nodenext`, decorators enabled (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` but `noImplicitAny: false`.
 

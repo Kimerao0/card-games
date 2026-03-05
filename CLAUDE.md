@@ -29,13 +29,13 @@ Piattaforma per giochi di carte italiani (Scopone Scientifico, Tresette). Monore
 
 ### Backend — `api/`
 
-**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth (Passport), Jest.
+**Stack:** NestJS v11, TypeScript 5.7, Express, PostgreSQL (TypeORM), JWT auth (Passport), Socket.IO (WebSocket), Jest.
 
-**Struttura:** Moduli NestJS con dependency injection. Entry point in `api/src/main.ts` (default Express adapter), ascolta su `0.0.0.0:3000`. CORS abilitato per `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`), `ClassSerializerInterceptor`, e `JwtAuthGuard` (tutte le rotte protette tranne `@Public()`).
+**Struttura:** Moduli NestJS con dependency injection. Entry point in `api/src/main.ts` (default Express adapter + IoAdapter per WebSocket), ascolta su `0.0.0.0:3000`. CORS abilitato per `localhost:5173`. Global `ValidationPipe` (`transform: true`, `whitelist: true`), `ClassSerializerInterceptor`, e `JwtAuthGuard` (tutte le rotte protette tranne `@Public()`). WebSocket (socket.io) condivide la porta 3000 per eventi realtime.
 
 ```
 api/src/
-├── main.ts                        # Entry point (Express, CORS, ValidationPipe, ClassSerializerInterceptor)
+├── main.ts                        # Entry point (Express, CORS, ValidationPipe, ClassSerializerInterceptor, IoAdapter for WebSocket)
 ├── app.module.ts                  # Root module (ConfigModule, TypeOrmModule, AuthModule, UsersModule, GamesModule, global JwtAuthGuard)
 ├── app.controller.ts              # GET / → "Hello World!"
 ├── app.service.ts
@@ -67,9 +67,10 @@ api/src/
 │   ├── card.types.ts              # TCardColors ('spades'|'hearts'|'diamonds'|'clubs'), ICard { id, value, color }
 │   └── shuffle.util.ts            # shuffle<T>(items): Fisher-Yates shuffle, ritorna nuovo array
 └── games/
-    ├── games.module.ts            # Importa Game + GameParticipant entities, UsersModule; provider: GamesService, ScoponeRulesService, GameDealingService
+    ├── games.module.ts            # Importa Game + GameParticipant entities, UsersModule, JwtModule; providers: GamesService, ScoponeRulesService, GameDealingService, GameGateway
     ├── games.controller.ts        # POST /games, GET /games, GET /games/:id, GET /games/:id/players, GET /games/:id/join, GET /games/:id/hand, POST /games/:id/play, GET /games/:id/state, DELETE /games/:id (solo creator, 204)
-    ├── games.service.ts           # Solo orchestrazione: delega regole a ScoponeRulesService, distribuzione a GameDealingService
+    ├── game.gateway.ts            # WebSocket gateway (socket.io): JWT auth on connection, room management (game:join-room/leave-room), emit helpers (emitPlayerJoined, emitGameStarted, emitGameStateUpdated, emitGameDeleted)
+    ├── games.service.ts           # Orchestrazione: delega regole a ScoponeRulesService, distribuzione a GameDealingService; emette eventi WebSocket via GameGateway dopo commit delle transazioni
     ├── scopone-rules.service.ts   # Regole pure Scopone (no DB): getCardValue, getCardColor, findScoponeCapture, calculateScoponeScore, handleGameEnd
     ├── game-dealing.service.ts    # Logica di distribuzione pura (no DB): dealForGameType, initCapturedByUser, initScopasByUser, pickRandomStartingIndex
     ├── game.entity.ts             # Entity: id(UUID), createdBy(ManyToOne→User), status(GameStatus), gameType(GameType), gamePlayers(OneToMany→GameParticipant), startingPlayerIndex(int|null), currentPlayerIndex(int|null), trickCardIds(int[]|null), trickPlayerIds(uuid[]|null), tableCardIds(int[]|null), capturedCardIdsByUser(jsonb|null), scopasByUser(jsonb|null), lastCaptureUserId(uuid|null), scoreResult(jsonb|null), createdAt, updatedAt
@@ -95,7 +96,9 @@ api/src/
 
 **Cards:** Mazzo Napoletane da 40 carte definito in `cards/all-cards.const.ts`. Ogni carta ha id numerico (1-40), valore (1-10) e colore (seme). Fisher-Yates shuffle in `cards/shuffle.util.ts`.
 
-**Games:** Ogni partita ha un creatore (`createdBy`), un tipo (`gameType`: `ScoponeScientifico` | `Tresette`), un ciclo di vita `GameStatus` (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), e fino a 4 giocatori tracciati via entity `GameParticipant`. Il tipo viene passato alla creazione tramite `CreateGameDto` nel body di `POST /games`. Solo il creatore può cancellare (`ForbiddenException`). I giocatori si uniscono via `GET /games/:id/join`; quando il 4° giocatore entra, `dealForGameType` distribuisce le carte: sia per Scopone Scientifico che per Tresette: 10 carte a giocatore + 0 sul tavolo. Le carte sono salvate come `handCardIds` in `game_participants`. Il join usa pessimistic write lock per sicurezza in concorrenza. Al deal viene scelto casualmente uno `startingPlayerIndex` (= `currentPlayerIndex`); `capturedCardIdsByUser` viene inizializzato a `{}` per ciascun partecipante. `GET /games/:id/hand` ritorna le carte distribuite al giocatore. `GET /games` elenca tutte le partite con conteggio giocatori e info di appartenenza. `GET /games/:id` ritorna il `GameSummaryDto` di una singola partita (include `status` e `isUserInGame`). `GET /games/:id/players` ritorna `GamePlayerDto[]` ordinati per join time. `POST /games/:id/play` (body `PlayCardDto { cardId }`) gioca una carta: verifica che sia il turno del giocatore, rimuove la carta dalla mano, applica la logica di cattura di Scopone (`findScoponeCapture`: prima match esatto di valore, poi combinazioni multi-carta con minimo numero di carte; le carte catturate vanno in `capturedCardIdsByUser`; la carta giocata senza cattura va in `tableCardIds`), avanza `currentPlayerIndex` round-robin. `GET /games/:id/state` ritorna il `GameStateDto` live (solo per partecipanti) — usato dal frontend con polling a 800ms.
+**Games:** Ogni partita ha un creatore (`createdBy`), un tipo (`gameType`: `ScoponeScientifico` | `Tresette`), un ciclo di vita `GameStatus` (`Created` → `Ready` → `Progress` → `Scoring` → `Completed`), e fino a 4 giocatori tracciati via entity `GameParticipant`. Il tipo viene passato alla creazione tramite `CreateGameDto` nel body di `POST /games`. Solo il creatore può cancellare (`ForbiddenException`). I giocatori si uniscono via `GET /games/:id/join`; quando il 4° giocatore entra, `dealForGameType` distribuisce le carte: sia per Scopone Scientifico che per Tresette: 10 carte a giocatore + 0 sul tavolo. Le carte sono salvate come `handCardIds` in `game_participants`. Il join usa pessimistic write lock per sicurezza in concorrenza. Al deal viene scelto casualmente uno `startingPlayerIndex` (= `currentPlayerIndex`); `capturedCardIdsByUser` viene inizializzato a `{}` per ciascun partecipante. `GET /games/:id/hand` ritorna le carte distribuite al giocatore. `GET /games` elenca tutte le partite con conteggio giocatori e info di appartenenza. `GET /games/:id` ritorna il `GameSummaryDto` di una singola partita (include `status` e `isUserInGame`). `GET /games/:id/players` ritorna `GamePlayerDto[]` ordinati per join time. `POST /games/:id/play` (body `PlayCardDto { cardId }`) gioca una carta: verifica che sia il turno del giocatore, rimuove la carta dalla mano, applica la logica di cattura di Scopone (`findScoponeCapture`: prima match esatto di valore, poi combinazioni multi-carta con minimo numero di carte; le carte catturate vanno in `capturedCardIdsByUser`; la carta giocata senza cattura va in `tableCardIds`), avanza `currentPlayerIndex` round-robin. `GET /games/:id/state` ritorna il `GameStateDto` live (solo per partecipanti) — usato come fallback; il frontend riceve lo stato in tempo reale via WebSocket (`game:state-updated`).
+
+**WebSocket (socket.io):** Il `GameGateway` gestisce la comunicazione realtime. Autenticazione JWT all'handshake (`client.handshake.auth.token`). I client si iscrivono a una room (`game:join-room`) e ricevono eventi push: `game:player-joined` (quando un giocatore entra), `game:started` (quando il 4° giocatore entra e le carte vengono distribuite), `game:state-updated` (dopo ogni giocata o cambio di stato), `game:deleted` (quando il creatore cancella la partita). Gli eventi vengono emessi dal `GamesService` **dopo** il commit delle transazioni DB, mai durante.
 
 **TypeScript:** target ES2023, module `nodenext`, decorator support abilitato (`experimentalDecorators`, `emitDecoratorMetadata`). `strictNullChecks: true` ma `noImplicitAny: false`.
 
@@ -105,7 +108,7 @@ api/src/
 
 Frontend React 19 + TypeScript + Vite.
 
-**Stack:** React 19, Redux Toolkit (`ui/src/store/`), MUI v7 (`ui/src/theme/`), React Router v7, Emotion for styled components.
+**Stack:** React 19, Redux Toolkit (`ui/src/store/`), MUI v7 (`ui/src/theme/`), React Router v7, Emotion for styled components, Socket.IO client for realtime updates.
 
 **Path alias:** `@/` maps to `src/` (configured in both `vite.config.ts` and `tsconfig.app.json`).
 
@@ -119,11 +122,13 @@ Frontend React 19 + TypeScript + Vite.
 
 **Playroom layout:** `ui/src/pages/Playroom/` contains the game table UI. `CardsField` renders a 4-player table (top/left/right opponents show card backs, bottom shows current player's hand sorted by suit then value). Sub-components in `CardsField/components/`: `CentralField` (table center with turn label, captured counters, table cards, overlay), `OpponentSeat` (opponent card backs), `PlayerHand` (current player's sorted hand). `useTableCardAnimation` hook manages enter/leave animation state. `PlayerCard` handles card display with click-to-play CSS transition animation and is disabled when it's not the player's turn. `Playroom` accepts all props as optional: `cards?`, `tableCards?`, `isMyTurn?`, `onPlayCard?`, `capturedMine?`, `capturedPartner?`, `currentTurnSeat?`, `playerNames?` (falls back to empty defaults for `/dev`).
 
-**GameRoom page:** `ui/src/pages/GameRoom/index.tsx` handles `/game/:id`. Sub-components in `GameRoom/components/`: `WaitingRoom` (progress spinner, seat indicators, player count), `ScopaNotification` (scopa event notification), `ScoreOverlay` (final score display), `useGameRoomState` hook (polling intervals, game state computation, turn logic). Two separate polling intervals drive `useGetGameQuery` (3000ms when `Created`) and `useGetGameStateQuery` (800ms when `Ready`). Once `Ready`, also fetches hand and players. Computes `isMyTurn`, `currentTurnSeat`, `tableCards`, and `capturedCounts`; submits card plays via `usePlayCardMutation`. Seat assignment is clockwise by join order (current user at bottom, then right → top → left).
+**GameRoom page:** `ui/src/pages/GameRoom/index.tsx` handles `/game/:id`. Sub-components in `GameRoom/components/`: `WaitingRoom` (progress spinner, seat indicators, player count), `ScopaNotification` (scopa event notification), `ScoreOverlay` (final score display), `useGameRoomState` hook (game state computation, turn logic). Il GameRoom usa WebSocket per ricevere aggiornamenti in tempo reale: su mount fa `joinGameRoom(gameId)`, su unmount `leaveGameRoom(gameId)`. Si sottoscrive a `game:state-updated`, `game:player-joined`, `game:started`, `game:deleted` e dispatcha azioni sul Redux slice `gameSocket`. Lo stato del gioco (`IGameStateDto`) arriva dal Redux slice `gameSocket`, non più da polling. `useGetGameQuery` viene chiamata una sola volta per metadata iniziale. `useGetGameHandQuery` e `useGetGamePlayersQuery` scattano quando lo status socket diventa `Ready`. Computes `isMyTurn`, `currentTurnSeat`, `tableCards`, and `capturedCounts`; submits card plays via `usePlayCardMutation`. Seat assignment is clockwise by join order (current user at bottom, then right → top → left).
 
 **GameLobbyPage:** `ui/src/pages/GameLobbyPage/` is a reusable config-driven lobby page used by both `ScoponeScientifico` and `Tresette`. Accepts a `GameLobbyConfig` (game type, rules, theme). Sub-components: `GamePageBackground`, `GameHero`, `JoinGameDialog`, `RulesCard`.
 
-**Auth persistence:** `ui/src/components/AuthInitializer.tsx` (mounted in `App.tsx`) re-hydrates the user from `GET /users/profile` on page refresh when a stored token exists but the Redux user is null. Dispatches `logout()` on 401. The store's `listenerMiddleware` resets the full RTK Query cache on logout to prevent stale profile data from leaking across user sessions.
+**Auth persistence:** `ui/src/components/AuthInitializer.tsx` (mounted in `App.tsx`) re-hydrates the user from `GET /users/profile` on page refresh when a stored token exists but the Redux user is null. Dispatches `logout()` on 401. Chiama `connectSocket(token)` dopo la reidratazione. The store's `listenerMiddleware` on logout: chiama `disconnectSocket()`, dispatcha `clearGameSocketState()`, e resetta la cache RTK Query.
+
+**Socket service:** `ui/src/services/socketService.ts` — singleton che gestisce la connessione socket.io. API: `connectSocket(token)`, `disconnectSocket()`, `joinGameRoom(gameId)`, `leaveGameRoom(gameId)`, e handler per eventi (`onGameStateUpdated`, `onGamePlayerJoined`, `onGameStarted`, `onGameDeleted`). La connessione viene stabilita su login/register (via `authApi.ts` `onQueryStarted`) e su refresh (via `AuthInitializer`).
 
 **Page components** are organized as `ui/src/pages/<PageName>/index.tsx`.
 

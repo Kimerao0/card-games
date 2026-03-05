@@ -16,7 +16,7 @@ No test runner is configured.
 
 This is the frontend UI for an Italian card games platform (Scopone Scientifico, Tresette) built with React 19 + TypeScript + Vite.
 
-**Stack:** React 19, Redux Toolkit + RTK Query (`src/store/`), MUI v7 (`src/theme/`), React Router v7, Emotion for styled components.
+**Stack:** React 19, Redux Toolkit + RTK Query (`src/store/`), MUI v7 (`src/theme/`), React Router v7, Emotion for styled components, Socket.IO client (`src/services/socketService.ts`) for realtime updates.
 
 **Path alias:** `@/` maps to `src/` (configured in both `vite.config.ts` and `tsconfig.app.json`).
 
@@ -60,12 +60,12 @@ src/
 │   │       ├── JoinGameDialog.tsx
 │   │       └── RulesCard.tsx
 │   ├── GameRoom/
-│   │   ├── index.tsx                 # Game room page for /game/:id — WaitingRoom (polls until Ready) or Playroom with real dealt cards
+│   │   ├── index.tsx                 # Game room page for /game/:id — manages socket room subscription (joinGameRoom/leaveGameRoom), event listeners dispatching to Redux, renders WaitingRoom or Playroom
 │   │   └── components/
 │   │       ├── WaitingRoom.tsx       # Progress spinner, seat indicators, player count
 │   │       ├── ScopaNotification.tsx # Scopa event notification
 │   │       ├── ScoreOverlay.tsx      # Final score display overlay
-│   │       └── useGameRoomState.ts   # Custom hook: polling intervals, game state computation, turn logic
+│   │       └── useGameRoomState.ts   # Custom hook: reads game state from Redux gameSocket slice, computes turn logic, seat mapping, table cards
 │   └── Playroom/
 │       ├── index.tsx                 # Game table wrapper; accepts cards?, tableCards?, isMyTurn?, onPlayCard?, capturedMine?, capturedPartner?, currentTurnSeat?, playerNames?
 │       └── CardsField/
@@ -77,16 +77,19 @@ src/
 │           │   └── PlayerHand.tsx    # Current player's sorted hand
 │           └── PlayerCard/
 │               └── index.tsx         # Individual card with click-to-play CSS transition animation; disabled when not player's turn
+├── services/
+│   └── socketService.ts              # Singleton socket.io client: connectSocket(token), disconnectSocket(), joinGameRoom(gameId), leaveGameRoom(gameId), event handlers (onGameStateUpdated, onGamePlayerJoined, onGameStarted, onGameDeleted)
 ├── store/
-│   ├── index.ts                      # configureStore; listenerMiddleware resets RTK Query cache (baseApi.util.resetApiState) on logout
+│   ├── index.ts                      # configureStore; listenerMiddleware on logout: disconnectSocket(), clearGameSocketState(), resetApiState()
 │   ├── hooks.ts                      # useAppDispatch, useAppSelector typed hooks
 │   ├── api/
 │   │   ├── baseApi.ts                # RTK Query base API (baseUrl: localhost:3000, Bearer token injection, tag types)
-│   │   ├── authApi.ts                # login, register mutations (auto-dispatch setCredentials)
+│   │   ├── authApi.ts                # login, register mutations (auto-dispatch setCredentials + connectSocket)
 │   │   ├── usersApi.ts               # getProfile query (tag: UserProfile)
-│   │   └── gamesApi.ts              # createGame, listGames, getGame, getGamePlayers, joinGame, getGameHand, deleteGame
+│   │   └── gamesApi.ts              # createGame, listGames, getGame, getGamePlayers, joinGame, getGameHand, playCard, deleteGame
 │   └── slices/
-│       └── authSlice.ts              # Auth state: user, token, initialized; persists token in sessionStorage. Selectors: selectCurrentUser, selectToken, selectIsAuthenticated, selectAuthInitialized
+│       ├── authSlice.ts              # Auth state: user, token, initialized; persists token in sessionStorage. Selectors: selectCurrentUser, selectToken, selectIsAuthenticated, selectAuthInitialized
+│       └── gameSocketSlice.ts        # Socket state: gameState (IGameStateDto|null), playersCount, gameStatus. Actions: setGameState, setPlayersCount, setGameStatus, clearGameSocketState
 ├── theme/
 │   └── index.ts                      # MUI theme (light mode, primary #1976d2, secondary #9c27b0)
 └── utils/
@@ -115,15 +118,15 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 
 **Auth Slice** (`store/slices/authSlice.ts`): State: `user` (IUser | null), `token` (string | null), `initialized` (boolean). Actions: `setCredentials`, `setToken`, `logout`, `setAuthInitialized`. Both `setCredentials` and `logout` persist/clear token in sessionStorage. Selectors: `selectCurrentUser`, `selectToken`, `selectIsAuthenticated`, `selectAuthInitialized`. Loads token from sessionStorage on init.
 
-**Auth Initializer** (`components/AuthInitializer.tsx`): Null-render component mounted at the root (inside `BrowserRouter`, outside the route tree). When a stored token exists but `currentUser` is null (e.g., after page refresh), it calls `useGetProfileQuery` and dispatches `setCredentials` to re-hydrate the user. Guards the dispatch with `currentUser === null` to prevent overwriting a user set by the login mutation. Dispatches `logout()` if the profile fetch returns an error (expired/invalid token). The store's `listenerMiddleware` clears the entire RTK Query cache (`baseApi.util.resetApiState()`) on every `logout` dispatch, preventing stale profile data from leaking across user sessions.
+**Auth Initializer** (`components/AuthInitializer.tsx`): Null-render component mounted at the root (inside `BrowserRouter`, outside the route tree). When a stored token exists but `currentUser` is null (e.g., after page refresh), it calls `useGetProfileQuery` and dispatches `setCredentials` to re-hydrate the user, then calls `connectSocket(token)` to establish the WebSocket connection. Guards the dispatch with `currentUser === null` to prevent overwriting a user set by the login mutation. Dispatches `logout()` if the profile fetch returns an error (expired/invalid token). The store's `listenerMiddleware` on `logout` dispatch: calls `disconnectSocket()`, dispatches `clearGameSocketState()`, and clears the RTK Query cache (`baseApi.util.resetApiState()`), preventing stale data from leaking across sessions.
 
 ### State Management (Redux Toolkit + RTK Query)
 
 **Base API** (`store/api/baseApi.ts`): Base URL `http://localhost:3000`. Prepares headers with Bearer token from sessionStorage. Tag types: `Games`, `GameHand`, `UserProfile`.
 
 **Auth API** (`store/api/authApi.ts`):
-- `useLoginMutation()` — POST /auth/login → `IAuthResponse`; auto-dispatches `setCredentials`
-- `useRegisterMutation()` — POST /auth/register → `IAuthResponse`; auto-dispatches `setCredentials`
+- `useLoginMutation()` — POST /auth/login → `IAuthResponse`; auto-dispatches `setCredentials` + `connectSocket(token)`
+- `useRegisterMutation()` — POST /auth/register → `IAuthResponse`; auto-dispatches `setCredentials` + `connectSocket(token)`
 
 **Users API** (`store/api/usersApi.ts`):
 - `useGetProfileQuery()` — GET /users/profile → `IUser`; tag: `UserProfile`
@@ -131,12 +134,11 @@ Defined in `src/App.tsx`. All routes are wrapped in `<AppLayout />` which render
 **Games API** (`store/api/gamesApi.ts`):
 - `useCreateGameMutation()` — POST /games with `{ gameType: TGameType }` body → `IGameCreatedResponse`; invalidates `Games`
 - `useListGamesQuery()` — GET /games → `IGameSummaryDto[]`; provides per-item + LIST tags
-- `useGetGameQuery(gameId)` — GET /games/{id} → `IGameSummaryDto`; tag: `Games` by gameId; used with `pollingInterval` in `GameRoom`
-- `useGetGamePlayersQuery(gameId)` — GET /games/{id}/players → `IGamePlayerDto[]`; fetched when game is `Ready` to populate seat name labels
+- `useGetGameQuery(gameId)` — GET /games/{id} → `IGameSummaryDto`; tag: `Games` by gameId; called once for initial metadata (no polling)
+- `useGetGamePlayersQuery(gameId)` — GET /games/{id}/players → `IGamePlayerDto[]`; fetched when socket status becomes `Ready`
 - `useJoinGameMutation(gameId)` — GET /games/{id}/join → `IGameDetailsDto`; invalidates `Games`, `GameHand`
-- `useGetGameHandQuery(gameId)` — GET /games/{id}/hand → `IGameHandDto`; tag: `GameHand` by gameId
-- `useGetGameStateQuery(gameId)` — GET /games/{id}/state → `IGameStateDto`; polled at 800ms when game is `Ready`; tag: `${gameId}-state`
-- `usePlayCardMutation()` — POST /games/{id}/play with `{ cardId: number }` body; invalidates `${gameId}-state` and `GameHand` by gameId
+- `useGetGameHandQuery(gameId)` — GET /games/{id}/hand → `IGameHandDto`; tag: `GameHand` by gameId; fetched when socket status becomes `Ready`
+- `usePlayCardMutation()` — POST /games/{id}/play with `{ cardId: number }` body; invalidates `GameHand` by gameId
 - `useDeleteGameMutation(gameId)` — DELETE /games/{id}; invalidates `Games`
 
 ### Card System
@@ -156,23 +158,25 @@ The `Playroom` component accepts all game props as optional: `cards?`, `tableCar
 
 ### GameRoom Page
 
-`src/pages/GameRoom/index.tsx` handles the `/game/:id` route. Sub-components in `GameRoom/components/`: `WaitingRoom` (progress spinner, seat indicators, player count), `ScopaNotification` (scopa event notification), `ScoreOverlay` (final score display), `useGameRoomState` hook (polling intervals, game state computation, turn logic).
+`src/pages/GameRoom/index.tsx` handles the `/game/:id` route. Sub-components in `GameRoom/components/`: `WaitingRoom` (progress spinner, seat indicators, player count), `ScopaNotification` (scopa event notification), `ScoreOverlay` (final score display), `useGameRoomState` hook (game state computation, turn logic).
 
-The `useGameRoomState` hook manages two polling intervals watching `game?.status`:
-- **`pollingInterval`** (for `useGetGameQuery`): 3000ms when `Created`, 0 otherwise
-- **`statePollingInterval`** (for `useGetGameStateQuery`): 800ms when `Ready`, 0 otherwise
+**WebSocket integration:** On mount, `GameRoom` calls `joinGameRoom(gameId)` to subscribe to the socket.io room. On unmount, calls `leaveGameRoom(gameId)`. Subscribes to four socket events via `useEffect`:
+- `onGameStateUpdated` → dispatches `setGameState()` to Redux
+- `onGamePlayerJoined` → dispatches `setPlayersCount()` and `setGameStatus()`
+- `onGameStarted` → dispatches `setGameStatus('Ready')`
+- `onGameDeleted` → navigates to home
 
-When the game transitions to `Ready`, `useGetGameHandQuery`, `useGetGamePlayersQuery`, and `useGetGameStateQuery` all fire automatically (their `skip` conditions become false). `usePlayCardMutation` is used to submit card plays.
+**`useGameRoomState` hook:** Reads game state from Redux `gameSocket` slice (`socketGameState`, `socketGameStatus`). No polling intervals — state is entirely event-driven. `useGetGameQuery` is called once for initial metadata. `useGetGameHandQuery` and `useGetGamePlayersQuery` fire when `effectiveStatus` (derived from socket state with fallback to HTTP response) becomes `Ready`.
 
 Computed memos:
 - **`myIndex`**: current user's position in the players array
 - **`playerNames`**: seat map (bottom = current user, right = +1, top = +2, left = +3 by join order)
-- **`isMyTurn`**: true when `gameState.currentPlayerIndex` points to the current user
+- **`isMyTurn`**: true when `socketGameState.currentPlayerIndex` points to the current user
 - **`currentTurnSeat`**: relative seat of the current-turn player from the current user's perspective
-- **`tableCards`**: maps `gameState.tableCardIds` to `ICard[]`
+- **`tableCards`**: maps `socketGameState.tableCardIds` to `ICard[]`
 - **`capturedCounts`**: `mine` = current user's captured card count; `partner` = player at `myIndex + 2`'s count
 
-`handlePlay(cardId)` calls `playCard({ gameId, cardId }).unwrap()` (no-op on error; polling re-aligns state). All computed values are forwarded to `<Playroom>`.
+`handlePlay(cardId)` calls `playCard({ gameId, cardId }).unwrap()` (on error, state re-aligns when server emits `game:state-updated`). All computed values are forwarded to `<Playroom>`.
 
 ### Page Components
 
