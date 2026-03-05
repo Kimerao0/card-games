@@ -28,13 +28,24 @@ Lo stato live della partita (`IGameStateDto`) deve arrivare solo da:
 **Prima:**
 
 ```ts
-import { useGetGameHandQuery, useGetGamePlayersQuery, useGetGameQuery, useGetGameStateQuery, usePlayCardMutation } from '@/store/api/gamesApi';
+import {
+  useGetGameHandQuery,
+  useGetGamePlayersQuery,
+  useGetGameQuery,
+  useGetGameStateQuery,
+  usePlayCardMutation,
+} from "@/store/api/gamesApi";
 ```
 
 **Dopo:**
 
 ```ts
-import { useGetGameHandQuery, useGetGamePlayersQuery, useGetGameQuery, usePlayCardMutation } from '@/store/api/gamesApi';
+import {
+  useGetGameHandQuery,
+  useGetGamePlayersQuery,
+  useGetGameQuery,
+  usePlayCardMutation,
+} from "@/store/api/gamesApi";
 ```
 
 ### B) Rimuovere state locali di polling
@@ -51,13 +62,21 @@ const [statePollingInterval, setStatePollingInterval] = useState(0);
 **Prima:**
 
 ```ts
-const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId, { pollingInterval });
+const {
+  data: game,
+  isLoading: isLoadingGame,
+  isError,
+} = useGetGameQuery(gameId, { pollingInterval });
 ```
 
 **Dopo:**
 
 ```ts
-const { data: game, isLoading: isLoadingGame, isError } = useGetGameQuery(gameId);
+const {
+  data: game,
+  isLoading: isLoadingGame,
+  isError,
+} = useGetGameQuery(gameId);
 ```
 
 > `GET /games/:id` viene fatto una sola volta. Serve solo per metadata iniziale (`Created`/`Ready`, `isUserInGame`, `maxPlayers`).
@@ -79,17 +98,17 @@ Rimuovi completamente:
 
 ```ts
 useEffect(() => {
-  if (game?.status === 'Created') {
+  if (game?.status === "Created") {
     setPollingInterval(5000);
     setStatePollingInterval(0);
     return;
   }
-  if (game?.status === 'Ready') {
+  if (game?.status === "Ready") {
     setPollingInterval(0);
     setStatePollingInterval(5000);
     return;
   }
-  if (game?.status === 'Scoring') {
+  if (game?.status === "Scoring") {
     setPollingInterval(0);
     setStatePollingInterval(0);
     return;
@@ -132,8 +151,8 @@ Nel file, tutti i memo/effect che leggono `gameState` devono usare `socketGameSt
 Al momento calcoli:
 
 ```ts
-const isReady = game?.status === 'Ready';
-const isScoring = game?.status === 'Scoring';
+const isReady = game?.status === "Ready";
+const isScoring = game?.status === "Scoring";
 ```
 
 Questo va aggiornato: `game` (da `useGetGameQuery`) ormai non e piu aggiornato in tempo reale.
@@ -144,9 +163,10 @@ Questo va aggiornato: `game` (da `useGetGameQuery`) ormai non e piu aggiornato i
 - lo status "live" deve venire dal socket: `socketGameStatus` oppure `socketGameState?.status`
 
 ```ts
-const effectiveStatus = socketGameState?.status ?? socketGameStatus ?? game?.status;
-const isReady = effectiveStatus === 'Ready';
-const isScoring = effectiveStatus === 'Scoring';
+const effectiveStatus =
+  socketGameState?.status ?? socketGameStatus ?? game?.status;
+const isReady = effectiveStatus === "Ready";
+const isScoring = effectiveStatus === "Scoring";
 const isGameActive = isReady || isScoring;
 ```
 
@@ -159,9 +179,12 @@ const isGameActive = isReady || isScoring;
 Attualmente dipende da `isReady`:
 
 ```ts
-const { data: handDto, isLoading: isLoadingHand } = useGetGameHandQuery(gameId, {
-  skip: !isReady || !game?.isUserInGame,
-});
+const { data: handDto, isLoading: isLoadingHand } = useGetGameHandQuery(
+  gameId,
+  {
+    skip: !isReady || !game?.isUserInGame,
+  },
+);
 ```
 
 Questa e ancora giusta, ma ora `isReady` viene dal socket (`effectiveStatus`).
@@ -171,7 +194,9 @@ Questa e ancora giusta, ma ora `isReady` viene dal socket (`effectiveStatus`).
 Attualmente:
 
 ```ts
-const { data: players } = useGetGamePlayersQuery(gameId, { skip: !isGameActive });
+const { data: players } = useGetGamePlayersQuery(gameId, {
+  skip: !isGameActive,
+});
 ```
 
 Ok: la fetch players parte quando diventa `Ready` o `Scoring`.
@@ -202,9 +227,56 @@ Non cambia comportamento, ma evita confusione.
 
 ---
 
-## 7.6 — Cosa NON cambiare (in questi file)
+## 7.6 — Aggiornare le guardie di rendering in GameRoom/index.tsx
 
-- `GameRoom/index.tsx` rimane uguale: gia fa subscribe + dispatch sullo slice.
+**File:** `ui/src/pages/GameRoom/index.tsx` [MODIFY]
+
+`GameRoom/index.tsx` ora fa subscribe + dispatch sullo slice (step 6), ma la logica di rendering usa ancora `game.status` (dal `useGetGameQuery` HTTP, chiamato una sola volta). Poiché `game` non viene più aggiornato via polling, `game.status` resta fermo al valore iniziale (es. `Created`). Bisogna usare `effectiveStatus` dal hook.
+
+### A) Esporre effectiveStatus e effectivePlayersCount dal hook
+
+In `useGameRoomState.ts`, aggiungere all'interfaccia `GameRoomState`:
+
+```ts
+readonly effectiveStatus: string | undefined;
+readonly effectivePlayersCount: number | null;
+```
+
+E nel return del hook:
+
+```ts
+effectiveStatus,
+effectivePlayersCount: socketPlayersCount,
+```
+
+### B) Sostituire game.status con effectiveStatus nel rendering
+
+**Prima:**
+
+```tsx
+if (game.status === 'Created') {
+  return <WaitingRoom playersCount={game.playersCount} ... />;
+}
+if (game.status === 'Scoring') { ... }
+if (game.status === 'Ready') { ... }
+```
+
+**Dopo:**
+
+```tsx
+if (effectiveStatus === 'Created') {
+  return <WaitingRoom playersCount={effectivePlayersCount ?? game.playersCount} ... />;
+}
+if (effectiveStatus === 'Scoring') { ... }
+if (effectiveStatus === 'Ready') { ... }
+```
+
+> `game` (da HTTP) serve ancora solo per metadata statico (`isUserInGame`, `maxPlayers`, `id`). Lo status live deve sempre venire da `effectiveStatus`.
+
+---
+
+## 7.7 — Cosa NON cambiare (in questi file)
+
 - `Playroom` continua a ricevere i props derivati da `useGameRoomState`.
 
 ---
@@ -216,4 +288,6 @@ Non cambia comportamento, ma evita confusione.
 - [ ] `gameState` arriva da `state.gameSocket.gameState`
 - [ ] `isReady`/`isScoring` derivati da socket (`effectiveStatus`)
 - [ ] `getHand` e `getPlayers` continuano via HTTP, ma "triggerati" dallo status socket
+- [ ] `GameRoom/index.tsx` usa `effectiveStatus` (non `game.status`) per tutte le guardie di rendering
+- [ ] `WaitingRoom` mostra `effectivePlayersCount` (dal socket) con fallback a `game.playersCount`
 - [ ] UI aggiornata realtime senza polling
