@@ -1,4 +1,4 @@
-# STEP 1 — Install backend packages (passo per passo)
+# STEP 1 — Install backend packages
 
 ## Obiettivo dello Step 1
 
@@ -111,7 +111,7 @@ Questo step è utile per ridurre "sorprese" nello step 2 (quando scriverete il G
 Aggiungi temporaneamente (solo per verificare compilation) un import in un file qualsiasi del backend, tipo in `src/app.module.ts`:
 
 ```ts
-import { WebSocketGateway } from '@nestjs/websockets';
+import { WebSocketGateway } from "@nestjs/websockets";
 ```
 
 Poi ricompila (`yarn build`). Se compila, significa che risoluzione moduli e types sono ok.
