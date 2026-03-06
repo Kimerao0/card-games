@@ -16,6 +16,7 @@ import { GameDealingService } from './game-dealing.service';
 import { Game } from './game.entity';
 import { GameParticipant } from 'src/games/game-player.entity';
 import { ScoponeRulesService } from './scopone-rules.service';
+import { TresetteRulesService } from './tresette-rules.service';
 import { GameGateway } from './game.gateway'; // ✅ NEW: il service ora può emettere eventi realtime via gateway
 
 const MAX_PLAYERS: number = 4;
@@ -29,6 +30,7 @@ export class GamesService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly scoponeRules: ScoponeRulesService,
+    private readonly tresetteRules: TresetteRulesService,
     private readonly gameDealing: GameDealingService,
     private readonly gameGateway: GameGateway, // ✅ NEW: iniezione del gateway per broadcast socket.io
     /**
@@ -148,7 +150,16 @@ export class GamesService {
 
         lockedGame.capturedCardIdsByUser = this.gameDealing.initCapturedByUser(updatedParticipants);
 
-        lockedGame.scopasByUser = this.gameDealing.initScopasByUser(updatedParticipants);
+        if (lockedGame.gameType === GameType.Tresette) {
+          // Per Tresette, inizializziamo scopasByUser con i punti degli accusi auto-rilevati
+          const accuseByUser: Record<string, number> = {};
+          for (let i = 0; i < MAX_PLAYERS; i += 1) {
+            accuseByUser[updatedParticipants[i].userId] = this.tresetteRules.detectAccuseThirds(updatedParticipants[i].handCardIds!);
+          }
+          lockedGame.scopasByUser = accuseByUser;
+        } else {
+          lockedGame.scopasByUser = this.gameDealing.initScopasByUser(updatedParticipants);
+        }
         lockedGame.lastCaptureUserId = null;
         lockedGame.scoreResult = null;
 
@@ -430,10 +441,15 @@ export class GamesService {
         throw new ConflictException('Card not in hand');
       }
 
-      currentPlayer.handCardIds = currentPlayer.handCardIds.filter((id) => id !== cardId);
-
       if (lockedGame.trickCardIds === null) lockedGame.trickCardIds = [];
       if (lockedGame.trickPlayerIds === null) lockedGame.trickPlayerIds = [];
+
+      // Tresette: validazione obbligo di rispondere al seme PRIMA di modificare la mano e il trick
+      if (lockedGame.gameType === GameType.Tresette) {
+        this.tresetteRules.validateSuitFollowing(cardId, currentPlayer.handCardIds, lockedGame.trickCardIds);
+      }
+
+      currentPlayer.handCardIds = currentPlayer.handCardIds.filter((id) => id !== cardId);
 
       if (lockedGame.tableCardIds === null) lockedGame.tableCardIds = [];
       if (lockedGame.capturedCardIdsByUser === null) {
@@ -465,19 +481,42 @@ export class GamesService {
         } else {
           lockedGame.tableCardIds.push(cardId);
         }
-      } else {
-        // Tressette (placeholder for now)
       }
 
       await participantRepository.save(currentPlayer);
 
-      lockedGame.currentPlayerIndex = (lockedGame.currentPlayerIndex + 1) % MAX_PLAYERS;
+      if (lockedGame.gameType === GameType.Tresette && lockedGame.trickCardIds.length === 4) {
+        // Trick completo: determina il vincitore e assegna le carte catturate
+        const winnerTrickIndex: number = this.tresetteRules.determineTrickWinnerIndex(lockedGame.trickCardIds);
+        const winnerUserId: string = lockedGame.trickPlayerIds[winnerTrickIndex];
+
+        // Tutte le 4 carte del trick vanno al vincitore
+        if (lockedGame.capturedCardIdsByUser[winnerUserId] === undefined) {
+          lockedGame.capturedCardIdsByUser[winnerUserId] = [];
+        }
+        lockedGame.capturedCardIdsByUser[winnerUserId].push(...lockedGame.trickCardIds);
+        lockedGame.lastCaptureUserId = winnerUserId;
+
+        // Svuota il trick corrente
+        lockedGame.trickCardIds = [];
+        lockedGame.trickPlayerIds = [];
+
+        // Il vincitore del trick gioca per primo nel prossimo trick
+        const winnerParticipantIndex = participants.findIndex((p) => p.userId === winnerUserId);
+        lockedGame.currentPlayerIndex = winnerParticipantIndex;
+      } else {
+        lockedGame.currentPlayerIndex = (lockedGame.currentPlayerIndex + 1) % MAX_PLAYERS;
+      }
 
       await gameRepository.save(lockedGame);
 
       const allHandsEmpty: boolean = participants.every((p) => (p.handCardIds ?? []).length === 0);
       if (allHandsEmpty) {
-        await this.scoponeRules.handleGameEnd(lockedGame, participants, manager);
+        if (lockedGame.gameType === GameType.ScoponeScientifico) {
+          await this.scoponeRules.handleGameEnd(lockedGame, participants, manager);
+        } else if (lockedGame.gameType === GameType.Tresette) {
+          await this.tresetteRules.handleGameEnd(lockedGame, participants, manager);
+        }
       }
 
       // ✅ NEW: ricarichiamo lo stato finale dal DB dentro la stessa transaction

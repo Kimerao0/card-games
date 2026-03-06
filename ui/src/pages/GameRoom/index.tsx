@@ -1,4 +1,4 @@
-import { type FC, useEffect } from 'react';
+import { type FC, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography, styled } from '@mui/material';
 
@@ -7,6 +7,8 @@ import { useGameRoomState } from './components/useGameRoomState';
 import { WaitingRoom } from './components/WaitingRoom';
 import { ScoreOverlay } from './components/ScoreOverlay';
 import { ScopaNotification } from './components/ScopaNotification';
+import { PlayHistoryModal } from './components/PlayHistoryModal';
+import { usePlayHistory } from './components/usePlayHistory';
 
 import { useAppDispatch } from '@/store/hooks';
 import { setGameState, setGameStatus, setPlayersCount } from '@/store/slices/gameSocketSlice';
@@ -64,6 +66,7 @@ export const GameRoom: FC = () => {
     isError,
     isLoadingHand,
     players,
+    gameState,
     playerCards,
     playerNames,
     isMyTurn,
@@ -74,6 +77,12 @@ export const GameRoom: FC = () => {
     scopaNotification,
     handlePlay,
   } = state;
+
+  // ---- Play history ----
+  const playHistory = usePlayHistory(gameState, players);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const openHistory = useCallback(() => setHistoryOpen(true), []);
+  const closeHistory = useCallback(() => setHistoryOpen(false), []);
 
   if (isLoadingGame && !game) {
     return (
@@ -112,8 +121,10 @@ export const GameRoom: FC = () => {
             capturedMine={capturedCounts.mine}
             capturedPartner={capturedCounts.partner}
             currentTurnSeat={undefined}
+            onHistoryClick={openHistory}
           />
           <ScoreOverlay scoreResult={scoreResult} players={players} />
+          <PlayHistoryModal open={historyOpen} onClose={closeHistory} history={playHistory} />
         </>
       );
     }
@@ -153,8 +164,10 @@ export const GameRoom: FC = () => {
             capturedMine={capturedCounts.mine}
             capturedPartner={capturedCounts.partner}
             currentTurnSeat={currentTurnSeat}
+            onHistoryClick={openHistory}
           />
           {scopaNotification !== null && <ScopaNotification playerName={scopaNotification} />}
+          <PlayHistoryModal open={historyOpen} onClose={closeHistory} history={playHistory} />
         </>
       );
     }
@@ -169,8 +182,10 @@ export const GameRoom: FC = () => {
             isMyTurn={false}
             capturedMine={capturedCounts.mine}
             capturedPartner={capturedCounts.partner}
+            onHistoryClick={openHistory}
           />
           <ScoreOverlay scoreResult={scoreResult} players={players} />
+          <PlayHistoryModal open={historyOpen} onClose={closeHistory} history={playHistory} />
         </>
       );
     }

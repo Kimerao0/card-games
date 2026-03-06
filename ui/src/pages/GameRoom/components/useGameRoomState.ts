@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ALL_CARDS } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
-import type { IGamePlayerDto, IGameStateDto, IGameSummaryDto, ScoponeScoreResult } from '@/dtos/Game';
+import type { GameScoreResult, IGamePlayerDto, IGameStateDto, IGameSummaryDto } from '@/dtos/Game';
 import { useGetGameHandQuery, useGetGamePlayersQuery, useGetGameQuery, usePlayCardMutation } from '@/store/api/gamesApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -35,7 +35,7 @@ export interface GameRoomState {
   readonly currentTurnSeat: TSeat | undefined;
   readonly tableCards: ICard[];
   readonly capturedCounts: CapturedCounts;
-  readonly scoreResult: ScoponeScoreResult | null | undefined;
+  readonly scoreResult: GameScoreResult | null | undefined;
   readonly scopaNotification: string | null;
   readonly handlePlay: (cardId: number) => Promise<void>;
 }
@@ -104,10 +104,16 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
     return 'left';
   }, [players, socketGameState, myIndex]);
 
+  const isTresette = socketGameState?.gameType === 'Tresette';
+
   const tableCards: ICard[] = useMemo(() => {
-    if (!socketGameState?.tableCardIds) return [];
-    return socketGameState.tableCardIds.map((id) => ALL_CARDS[id - 1]);
-  }, [socketGameState?.tableCardIds]);
+    if (!socketGameState) return [];
+    // Tresette: le carte mostrate al centro sono quelle del trick in corso
+    // Scopone: le carte mostrate al centro sono quelle sul tavolo
+    const cardIds = isTresette ? socketGameState.trickCardIds : socketGameState.tableCardIds;
+    if (!cardIds) return [];
+    return cardIds.map((id) => ALL_CARDS[id - 1]);
+  }, [socketGameState, isTresette]);
 
   const capturedCounts = useMemo(() => {
     if (!currentUser || !players || !socketGameState || myIndex === -1) {
@@ -128,6 +134,8 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
   const [scopaNotification, setScopaNotification] = useState<string | null>(null);
 
   useEffect(() => {
+    // La notifica scopa è solo per Scopone Scientifico; per Tresette scopasByUser contiene i punti accusi
+    if (isTresette) return;
     const current = socketGameState?.scopasByUser;
     if (!current || !players) return;
 
@@ -145,7 +153,7 @@ export const useGameRoomState = (gameId: string): GameRoomState => {
     }
 
     prevScopasByUserRef.current = { ...current };
-  }, [socketGameState?.scopasByUser, players]);
+  }, [socketGameState?.scopasByUser, players, isTresette]);
 
   const handlePlay = async (cardId: number): Promise<void> => {
     if (!isMyTurn) return;

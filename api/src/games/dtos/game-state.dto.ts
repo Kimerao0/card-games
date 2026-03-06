@@ -1,6 +1,6 @@
 import { GameStatus } from 'src/games/game-status.enum';
 import { GameType } from 'src/games/game-type.enum';
-import { ScoponeScoreResult } from './game-score.dto';
+import { GameScoreResult } from './game-score.dto';
 
 export class GameStateDto {
   id!: string;
@@ -17,5 +17,5 @@ export class GameStateDto {
   capturedCardIdsByUser!: Record<string, number[]>;
 
   scopasByUser!: Record<string, number>;
-  scoreResult!: ScoponeScoreResult | null;
+  scoreResult!: GameScoreResult | null;
 }

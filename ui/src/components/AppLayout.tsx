@@ -7,7 +7,7 @@ export const AppLayout: FC = () => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
       <AppHeader />
-      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxHeight: '100vh' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'auto' }}>
         <Outlet />
       </Box>
     </Box>

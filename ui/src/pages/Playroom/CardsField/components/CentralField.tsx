@@ -1,5 +1,6 @@
 import { type FC } from 'react';
 import styled from '@emotion/styled';
+import HistoryIcon from '@mui/icons-material/History';
 import { CARDS_IMAGES } from '@/constants/cardsData';
 import type { ICard } from '@/dtos/Card';
 
@@ -11,9 +12,10 @@ interface CentralFieldProps {
   readonly leavingIds: Set<number>;
   readonly enteringIds: Set<number>;
   readonly centerPlayedCard: ICard | null;
+  readonly onHistoryClick?: () => void;
 }
 
-export const CentralField: FC<CentralFieldProps> = ({ isMyTurn, capturedMine, capturedPartner, localTableCards, leavingIds, enteringIds, centerPlayedCard }) => {
+export const CentralField: FC<CentralFieldProps> = ({ isMyTurn, capturedMine, capturedPartner, localTableCards, leavingIds, enteringIds, centerPlayedCard, onHistoryClick }) => {
   return (
     <CentralFieldWrapper>
       <TurnLabel $myTurn={isMyTurn}>{isMyTurn ? 'Tocca a te' : 'Aspetta il tuo turno'}</TurnLabel>
@@ -21,6 +23,11 @@ export const CentralField: FC<CentralFieldProps> = ({ isMyTurn, capturedMine, ca
       <CountersRow>
         <CounterPill>Prese tue: {capturedMine}</CounterPill>
         <CounterPill>Prese partner: {capturedPartner}</CounterPill>
+        {onHistoryClick && (
+          <HistoryButton onClick={onHistoryClick} title="Giocate precedenti">
+            <HistoryIcon sx={{ fontSize: '1rem' }} />
+          </HistoryButton>
+        )}
       </CountersRow>
 
       <TableCardsWrapper>
@@ -128,6 +135,23 @@ const CounterPill = styled('div')({
   backgroundColor: 'rgba(0,0,0,0.25)',
   border: '1px solid rgba(255,255,255,0.18)',
   userSelect: 'none',
+});
+
+const HistoryButton = styled('button')({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '32px',
+  height: '32px',
+  borderRadius: '999px',
+  border: '1px solid rgba(255,255,255,0.18)',
+  backgroundColor: 'rgba(0,0,0,0.25)',
+  color: 'rgba(255,255,255,0.8)',
+  cursor: 'pointer',
+  transition: 'background-color 200ms ease',
+  '&:hover': {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
 });
 
 const TurnLabel = styled('div')<{ $myTurn: boolean }>(({ $myTurn }) => ({

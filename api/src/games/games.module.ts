@@ -23,6 +23,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GamesController } from './games.controller';
 import { GamesService } from './games.service';
 import { ScoponeRulesService } from './scopone-rules.service';
+import { TresetteRulesService } from './tresette-rules.service';
 import { GameDealingService } from './game-dealing.service';
 import { Game } from './game.entity';
 import { UsersModule } from '../users/users.module';
@@ -146,6 +147,7 @@ import { GameGateway } from 'src/games/game.gateway';
   providers: [
     GamesService,
     ScoponeRulesService,
+    TresetteRulesService,
     GameDealingService,
 
     /**

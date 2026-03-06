@@ -4,7 +4,7 @@ import { getStoredToken } from '@/utils/tokenStorage';
 export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
-    baseUrl: 'http://localhost:3000',
+    baseUrl: `http://${window.location.hostname}:3000`,
     prepareHeaders: (headers): Headers => {
       const token = getStoredToken();
       if (token) {

@@ -25,9 +25,10 @@ interface CardsFieldProps {
   capturedMine: number;
   capturedPartner: number;
   currentTurnSeat?: TSeat;
+  onHistoryClick?: () => void;
 }
 
-export const CardsField: FC<CardsFieldProps> = ({ cards, tableCards, playerNames, isMyTurn, onPlayCard, capturedMine, capturedPartner, currentTurnSeat }) => {
+export const CardsField: FC<CardsFieldProps> = ({ cards, tableCards, playerNames, isMyTurn, onPlayCard, capturedMine, capturedPartner, currentTurnSeat, onHistoryClick }) => {
   const [playerCards, setPlayerCards] = useState<ICard[]>(cards);
   const [playedCardId, setPlayedCardId] = useState<number | null>(null);
   const [centerPlayedCard, setCenterPlayedCard] = useState<ICard | null>(null);
@@ -77,6 +78,7 @@ export const CardsField: FC<CardsFieldProps> = ({ cards, tableCards, playerNames
           leavingIds={leavingIds}
           enteringIds={enteringIds}
           centerPlayedCard={centerPlayedCard}
+          onHistoryClick={onHistoryClick}
         />
 
         <OpponentSeat position="right" playerName={playerNames?.right} isActive={currentTurnSeat === 'right'} />

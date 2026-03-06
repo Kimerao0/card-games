@@ -21,9 +21,10 @@ interface PlayroomProps {
   readonly capturedMine?: number;
   readonly capturedPartner?: number;
   readonly currentTurnSeat?: TSeat;
+  readonly onHistoryClick?: () => void;
 }
 
-export const Playroom: FC<PlayroomProps> = ({ cards, tableCards, playerNames, isMyTurn, onPlayCard, capturedMine, capturedPartner, currentTurnSeat }) => {
+export const Playroom: FC<PlayroomProps> = ({ cards, tableCards, playerNames, isMyTurn, onPlayCard, capturedMine, capturedPartner, currentTurnSeat, onHistoryClick }) => {
   const playerHand: ICard[] = cards ?? [];
   const table: ICard[] = tableCards ?? [];
 
@@ -38,6 +39,7 @@ export const Playroom: FC<PlayroomProps> = ({ cards, tableCards, playerNames, is
         capturedMine={capturedMine ?? 0}
         capturedPartner={capturedPartner ?? 0}
         currentTurnSeat={currentTurnSeat}
+        onHistoryClick={onHistoryClick}
       />
     </PlayroomWrapper>
   );

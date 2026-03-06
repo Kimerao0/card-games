@@ -3,7 +3,7 @@ import { User } from 'src/users/user.entity';
 import { GameStatus } from 'src/games/game-status.enum';
 import { GameType } from 'src/games/game-type.enum';
 import { GameParticipant } from './game-player.entity';
-import { ScoponeScoreResult } from './dtos/game-score.dto';
+import { GameScoreResult } from './dtos/game-score.dto';
 
 @Entity('games')
 export class Game {
@@ -54,7 +54,7 @@ export class Game {
   lastCaptureUserId!: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  scoreResult!: ScoponeScoreResult | null;
+  scoreResult!: GameScoreResult | null;
 
   @OneToMany(() => GameParticipant, (gp) => gp.game, { cascade: true })
   public gamePlayers: GameParticipant[];

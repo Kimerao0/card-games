@@ -118,7 +118,6 @@ const PageWrapper = styled('div')({
   width: '100%',
   minHeight: '100%',
   background: 'linear-gradient(160deg, #1a3a1a 0%, #2d5a27 30%, #1b4332 70%, #0d2818 100%)',
-  overflow: 'hidden',
 });
 
 const ScatteredCardsLayer = styled('div')({

@@ -13,9 +13,27 @@ export interface TeamScoreDetails {
 }
 
 export interface ScoponeScoreResult {
+  readonly type?: 'scopone';
   readonly teamA: TeamScoreDetails;
   readonly teamB: TeamScoreDetails;
 }
+
+export interface TresetteTeamScoreDetails {
+  readonly userIds: string[];
+  readonly cardPointsThirds: number;
+  readonly lastTrickBonus: boolean;
+  readonly accusePoints: number;
+  readonly totalThirds: number;
+  readonly totalPoints: string;
+}
+
+export interface TresetteScoreResult {
+  readonly type: 'tresette';
+  readonly teamA: TresetteTeamScoreDetails;
+  readonly teamB: TresetteTeamScoreDetails;
+}
+
+export type GameScoreResult = ScoponeScoreResult | TresetteScoreResult;
 
 export type TGameStatus = 'Created' | 'Ready' | 'Progress' | 'Scoring' | 'Completed';
 export type TGameType = 'ScoponeScientifico' | 'Tresette';
@@ -86,5 +104,5 @@ export interface IGameStateDto {
   readonly capturedCardIdsByUser: Record<string, number[]>;
 
   readonly scopasByUser: Record<string, number>;
-  readonly scoreResult: ScoponeScoreResult | null;
+  readonly scoreResult: GameScoreResult | null;
 }

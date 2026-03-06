@@ -8,7 +8,7 @@ type TGameDeletedHandler = () => void;
 
 let socket: Socket | null = null;
 
-const SOCKET_URL = 'http://localhost:3000';
+const SOCKET_URL = `http://${window.location.hostname}:3000`;
 
 export const connectSocket = (token: string): Socket => {
   if (socket && socket.connected) {

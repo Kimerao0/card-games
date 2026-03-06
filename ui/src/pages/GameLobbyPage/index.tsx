@@ -143,7 +143,6 @@ const PageWrapper = styled('div')<{ $background: string }>(({ $background }) => 
   width: '100%',
   minHeight: '100%',
   background: $background,
-  overflow: 'hidden',
 }));
 
 const ContentLayer = styled('div')({
